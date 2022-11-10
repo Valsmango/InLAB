@@ -5,7 +5,7 @@ import os
 import numpy as np
 import torch
 
-import utils
+from . import utils
 from .models import OriginDDPG
 from .models import TD3
 from .models import OurDDPG

@@ -1,3 +1,5 @@
+import math
+import os
 import random
 from typing import Dict
 
@@ -7,12 +9,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from itertools import count
 
 
 class CriticNetwork(nn.module):
-    def __init__(self):
+    def __init__(self, h, w):
         # 继承nn.Module：
         super(CriticNetwork, self).__init__()
         # 网络结构：输入state(两张图片之差) - Conv Conv Conv LSTM FC - 输出action动作空间对应的Q值（动作left的Q值、动作right的Q值）
@@ -22,16 +23,21 @@ class CriticNetwork(nn.module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
-        self.lstm = nn.LSTM()
-        self.linear = nn.Linear()
-        # self.head = nn.Linear(linear_input_size, outputs)
+        def conv2d_size_out(size, kernel_size = 5, stride = 2):
+            return (size - (kernel_size - 1) - 1) // stride  + 1
+        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
+        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
+        input_size = convw * convh * 32
+
+        self.lstm = nn.LSTM(input_size, input_size, batch_first=True)
+        self.linear = nn.Linear(input_size, 2)
 
     def forward(self, x, h, c):
         x = x.to(device)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-        x = self.lstm(x, h, c)
+        x, (_, _) = self.lstm(x, h, c)
         return self.linear(x.view(x.size(0), -1))
 
     '''
@@ -89,22 +95,104 @@ class ReplayBuffer:
 
 
 if __name__ == "__main__":
-
     # Env parameters
     model_name = "myDRQN"
     env_name = "CartPole-v0"
     seed = 0
-    exp_num = 'SEED' + '_' + str(seed)
+    save_model_flag = True
 
     # Set gym environment
     env = gym.make(env_name)
-    # Set the seed
+
+    # Set seeds
+    env.seed(seed)
+    env.action_space.seed(seed)     # 这个是TD3中提到的seed
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
     if torch.backends.cudnn.enabled:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
-    env.seed(seed)
 
+    # set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # save results
+    file_name = f"{model_name}_{env_name}_{seed}"
+    if not os.path.exists("./results"):
+        os.makedirs("./results")
+    if save_model_flag and not os.path.exists("./models"):
+        os.makedirs("./models")
+
+    # model parameters
+    learning_rate = 1e-3
+    batch_sz = 16
+    eps_start = 0.1
+    eps_end = 0.001
+    eps_decay = 0.995
+    tau = 1e-2
+    max_step = 2000
+
+    # Initiate the network and set the optimizer
+    Q_net = CriticNetwork()
+    Q_target_net = CriticNetwork()
+    optimizer = optim.Adam(Q_net.parameters(), lr=learning_rate)
+
+    # training parameters
+    max_episodes = 1000
+    h =
+    c =
+
+
+
+    # 开始训练
+    for i in range(max_episodes):
+        # Initialize the environment and state
+        env.reset()
+        last_screen = get_screen()
+        current_screen = get_screen()
+        state = current_screen - last_screen
+        for t in count():
+            # Select and perform an action
+            action = Q_net.sample_action(state, h=h, c=c ,epsilon=)
+
+            _, reward, done, _ = env.step(action.item())
+            # reward是一个float格式的数值，转换为tensor
+            reward = torch.tensor([reward], device=device)
+
+            # Observe new state
+            last_screen = current_screen
+            current_screen = get_screen()
+            if not done:
+                next_state = current_screen - last_screen
+            else:
+                next_state = None
+
+            # Store the transition in memory
+            memory.push(state, action, next_state, reward)
+
+            # Move to the next state
+            state = next_state
+
+            # Perform one step of the optimization (on the policy network)
+            optimize_model()
+
+            # 更新eps
+            epsilon = max(eps_end, epsilon * eps_decay)  # Linear annealing
+
+            if done:
+                episode_durations.append(t + 1)
+                plot_durations()
+                break
+        # Update the target network, copying all weights and biases in DQN
+        if i_episode % TARGET_UPDATE == 0:
+            target_net.load_state_dict(policy_net.state_dict())
+
+    # save the model
+    if save_model_flag:
+        torch.save(Q_net.state_dict(), file_name)
+
+
+'''
+https://zhuanlan.zhihu.com/p/524650878
+'''
