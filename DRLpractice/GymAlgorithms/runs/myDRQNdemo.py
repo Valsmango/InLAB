@@ -11,9 +11,14 @@ import torch.nn.functional as F
 import torch.optim as optim
 from itertools import count
 
+import torchvision.transforms as T
+
+from torchvision.transforms import InterpolationMode
+
 
 class CriticNetwork(nn.module):
     def __init__(self, h, w):
+        # 输入参数 h 是指state图片的height， w 是state图片的width
         # 继承nn.Module：
         super(CriticNetwork, self).__init__()
         # 网络结构：输入state(两张图片之差) - Conv Conv Conv LSTM FC - 输出action动作空间对应的Q值（动作left的Q值、动作right的Q值）
@@ -27,6 +32,7 @@ class CriticNetwork(nn.module):
             return (size - (kernel_size - 1) - 1) // stride  + 1
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
+        # hidden_state个数为32
         input_size = convw * convh * 32
 
         self.lstm = nn.LSTM(input_size, input_size, batch_first=True)
@@ -93,6 +99,43 @@ class ReplayBuffer:
     def __len__(self) -> int:
         return len(self.obs)
 
+# 用resize = T.Compose([T.ToPILImage(),T.Resize(40, interpolation=Image.CUBIC),T.ToTensor()])会报Warning
+resize = T.Compose([T.ToPILImage(), # 将tensor格式转换为PIL格式
+                    T.Resize(40, interpolation=InterpolationMode.BICUBIC),  # Resize将短边压缩为40，长边按比例变化
+                    T.ToTensor()]) # 将PIL格式重新转换为tensor格式
+
+
+def get_cart_location(screen_width):
+    world_width = env.x_threshold * 2
+    scale = screen_width / world_width
+    return int(env.state[0] * scale + screen_width / 2.0)  # MIDDLE OF CART
+
+
+def get_screen():
+    # Returned screen requested by gym is 400x600x3, but is sometimes larger
+    # such as 800x1200x3. Transpose it into torch order (CHW).
+    screen = env.render(mode='rgb_array').transpose((2, 0, 1))
+    # Cart is in the lower half, so strip off the top and bottom of the screen
+    _, screen_height, screen_width = screen.shape
+    screen = screen[:, int(screen_height*0.4):int(screen_height * 0.8)]
+    view_width = int(screen_width * 0.6)
+    cart_location = get_cart_location(screen_width)
+    if cart_location < view_width // 2:
+        slice_range = slice(view_width)
+    elif cart_location > (screen_width - view_width // 2):
+        slice_range = slice(-view_width, None)
+    else:
+        slice_range = slice(cart_location - view_width // 2,
+                            cart_location + view_width // 2)
+    # Strip off the edges, so that we have a square image centered on a cart
+    screen = screen[:, :, slice_range]
+    # Convert to float, rescale, convert to torch tensor
+    # (this doesn't require a copy)
+    screen = np.ascontiguousarray(screen, dtype=np.float32) / 255
+    screen = torch.from_numpy(screen)
+    # Resize, and add a batch dimension (BCHW)
+    return resize(screen).unsqueeze(0)  # 用unsqueeze函数增加一个维度，即BCHW，如果gym得图像是400x600x3，则输出为3x160x360的图像
+
 
 if __name__ == "__main__":
     # Env parameters
@@ -106,7 +149,7 @@ if __name__ == "__main__":
 
     # Set seeds
     env.seed(seed)
-    env.action_space.seed(seed)     # 这个是TD3中提到的seed
+    # env.action_space.seed(seed)     # 这个是TD3中提到的seed
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
@@ -140,9 +183,14 @@ if __name__ == "__main__":
 
     # training parameters
     max_episodes = 1000
-    h =
-    c =
 
+    # other parameters
+    EPS_START = 0.9
+    EPS_END = 0.05
+    EPS_DECAY = 200  # 越小，eps_threshold下降得越快
+    steps_done = 0
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+                    math.exp(-1. * steps_done / EPS_DECAY)
 
 
     # 开始训练
@@ -152,9 +200,14 @@ if __name__ == "__main__":
         last_screen = get_screen()
         current_screen = get_screen()
         state = current_screen - last_screen
+        # state 为 BCHW     B x 3 x 160 x 360
         for t in count():
             # Select and perform an action
-            action = Q_net.sample_action(state, h=h, c=c ,epsilon=)
+            eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+                            math.exp(-1. * steps_done / EPS_DECAY)
+            steps_done += 1
+            _,_,h,w = state.shape
+            action = Q_net.sample_action(state, h=h, c=w ,epsilon=eps_threshold)
 
             _, reward, done, _ = env.step(action.item())
             # reward是一个float格式的数值，转换为tensor
