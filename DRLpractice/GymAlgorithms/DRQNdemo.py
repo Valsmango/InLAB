@@ -249,7 +249,7 @@ if __name__ == "__main__":
     writer = SummaryWriter('runs/' + env_name + "_" + model_name + "_" + exp_num)
 
     # Set parameters
-    batch_size = 8
+    batch_size = 16
     learning_rate = 1e-3
     buffer_len = int(100000)
     min_epi_num = 20  # Start moment to train the Q network

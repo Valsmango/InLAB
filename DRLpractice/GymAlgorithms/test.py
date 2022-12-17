@@ -1,5 +1,8 @@
 import collections
 import itertools
+import numpy as np
+import torch
+import time
 from collections import namedtuple, deque
 
 
@@ -25,12 +28,24 @@ class SubReplayBuffer:
         return len(self.memory)
 
 if __name__ == "__main__":
-    buffer = SubReplayBuffer(10)
-    buffer.push('aaa', 18)
-    buffer.push('bbb', 19)
-    buffer.push('ccc', 20)
-    # ans = buffer.sample(True, 2, 0)
-    # print(ans.__getitem__(1))
+    # q_taget = torch.zeros([2, 3, 4])
+    # q_taget[0][0][0] = 0
+    # q_taget[0][1][0] = 1
+    # q_taget[0][2][0] = 2
+    # q_taget[1][0][0] = 5
+    # q_taget[1][1][0] = 6
+    # q_taget[1][2][0] = 7
+    # q_taget[0][0][1] = 1
+    # q_taget[0][1][1] = 2
+    # q_taget[0][2][1] = 3
+    # q_taget[1][0][1] = 4
+    # q_taget[1][1][1] = 5
+    # q_taget[1][2][1] = 6
+    # print(q_taget.max(2)[1])
 
-    for i in range(len(buffer)):
-        print(buffer.__getattribute__("age")[i])
+    t0 = time.time()
+    a = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    print(a.size()[0])
+    time.sleep(0.1)
+    t1 = time.time()
+    print(f"运行时间为：{t1-t0:.2f}s")

@@ -14,6 +14,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 from itertools import count
 
+import time
+
+
 import torchvision.transforms as T
 
 from torchvision.transforms import InterpolationMode
@@ -76,15 +79,16 @@ class CriticNetwork(nn.Module):
             return torch.zeros([1, 1, self.hidden_size]), torch.zeros([1, 1, self.hidden_size])
 
     def forward(self, x, h_0, c_0):
-        # x 即为 state，BCHW   B x 3 x 160 x 360
-        x = x.to(device)
+        # x 即为 state，B Seq_len CHW   B x Seq_len x 3 x 160 x 360
+        batch, seq_len, channels, height, width = x.size()
+        x = x.reshape(batch*seq_len, channels, height, width).to(device)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         # nn.LSTM中输入与输出关系为output, (hn, cn) = lstm(input, (h0, c0))
         # https://blog.csdn.net/weixin_43788986/article/details/125441919
-        x, (h_t, c_t) = self.lstm(x.view(x.size(0), -1).unsqueeze(0), (h_0, c_0))
-        return self.linear(x.view(x.size(0), -1)), h_t, c_t
+        x, (h_t, c_t) = self.lstm(x.reshape(batch, seq_len, -1), (h_0, c_0))
+        return self.linear(x), h_t, c_t
 
     '''
     改进：这里的epsilon改进为自适应的，和 DQN demo 中的一样，随着steps_done增大，epsilon_threshold减小，从0.9减小到0.362（steps_done=200时），到0；
@@ -133,29 +137,49 @@ class ReplayBuffer:
             idx = np.random.randint(0, len(self.replaybuffer))
             sampled_buffer.append(self.replaybuffer[idx].sample(random_update=self.random_update))
 
-        return sampled_buffer, len(sampled_buffer[0])  # buffers, sequence_length
+        return sampled_buffer, len(sampled_buffer[0]['done'])  # buffers, sequence_length
 
     def __len__(self):
         return len(self.replaybuffer)
 
 
 class SubReplayBuffer:
-    def __init__(self, capacity):
-        self.Transition = namedtuple('Transition',
-                        ('obs', 'action', 'next_obs', 'reward', 'done'))
-        self.subreplaybuffer = deque([], maxlen=capacity)
+    def __init__(self):
+        self.obs = []
+        self.action = []
+        self.reward = []
+        self.next_obs = []
+        self.done = []
 
-    def push(self, *args):
-        self.subreplaybuffer.append(self.Transition(*args))
+    def put(self, s, a, r, next_s, done):
+        self.obs.append(s)
+        self.action.append(a)
+        self.reward.append(r)
+        self.next_obs.append(next_s)
+        self.done.append(done)
 
-    def sample(self, random_update=False, idx=None, lookup_step=None):
-        if random_update is False:
-            return self.subreplaybuffer
-        else:
-            return collections.deque(itertools.islice(self.subreplaybuffer, idx, idx + lookup_step))
+    def sample(self, random_update=False, lookup_step=None, idx=None) -> Dict[str, np.ndarray]:
+        obs = np.array(self.obs)
+        action = np.array(self.action)
+        reward = np.array(self.reward)
+        next_obs = np.array(self.next_obs)
+        done = np.array(self.done)
 
-    def __len__(self):
-        return len(self.subreplaybuffer)
+        if random_update is True:
+            obs = obs[idx:idx + lookup_step]
+            action = action[idx:idx + lookup_step]
+            reward = reward[idx:idx + lookup_step]
+            next_obs = next_obs[idx:idx + lookup_step]
+            done = done[idx:idx + lookup_step]
+
+        return dict(obs=obs,
+                    acts=action,
+                    rews=reward,
+                    next_obs=next_obs,
+                    done=done)
+
+    def __len__(self) -> int:
+        return len(self.obs)
 
 
 class PicUtils:
@@ -196,75 +220,64 @@ class PicUtils:
         screen = np.ascontiguousarray(screen, dtype=np.float32) / 255
         screen = torch.from_numpy(screen)
         # Resize, and add a batch dimension (BCHW)
-        return self.resize(screen).unsqueeze(0)  # 用unsqueeze函数增加一个维度，即BCHW，如果gym得图像是400x600x3，则输出为3x160x360的图像
+        return self.resize(screen)  # 用unsqueeze函数增加一个维度，即BCHW，如果gym得图像是400x600x3，则输出为3x160x360的图像
 
 
-def optimize_model(Q_net, Q_target_net, replay_buffer, batch_size, gamma):
-    # 1, sample，选择默认的sequential update
-    seq_len = 0
-    while(seq_len <= batch_size):
-        samples, seq_len = replay_buffer.sample()
+def optimize_model(Q_net=None, Q_target_net=None, replay_buffer=None, batch_size=1, gamma=0.99, channel=3, height=None, width=None):
+    samples, seq_len = replay_buffer.sample()
+
     observations = []
     actions = []
     rewards = []
     next_observations = []
     dones = []
 
-    # sample = samples[0]
     for i in range(batch_size):
-        # 每一个sample都是多个Transition（一步）
-        # observations.append(sample[j].__getattribute__("obs"))
-        # actions.append(sample[j][1])
-        # rewards.append(sample[j][2])
-        # next_observations.append(sample[j][3])
-        # dones.append(sample[j][4])
-        for j in range(seq_len):
-            observations.append(samples[i][j].__getattribute__("obs"))
-            actions.append(samples[i][j].__getattribute__("action"))
-            rewards.append(samples[i][j].__getattribute__("reward"))
-            next_observations.append(samples[i][j].__getattribute__("next_obs"))
-            dones.append(samples[i][j].__getattribute__("done"))
+        observations.append(samples[i]["obs"])
+        actions.append(samples[i]["acts"])
+        rewards.append(samples[i]["rews"])
+        next_observations.append(samples[i]["next_obs"])
+        dones.append(samples[i]["done"])
 
-    observations = torch.stack(list(observations)).to(device)
-    actions = torch.tensor(actions).to(device)
-    rewards = torch.stack(list(rewards)).to(device)
-    next_observations = torch.stack(list(next_observations)).to(device)
-    dones = torch.stack(list(dones)).to(device)
+    observations = np.array(observations)
+    actions = np.array(actions)
+    rewards = np.array(rewards)
+    next_observations = np.array(next_observations)
+    dones = np.array(dones)
 
+    observations = torch.FloatTensor(observations.reshape(batch_size, seq_len, channel, height, width)).to(device)
+    actions = torch.LongTensor(actions.reshape(batch_size, seq_len, -1)).to(device)
+    rewards = torch.FloatTensor(rewards.reshape(batch_size, seq_len, -1)).to(device)
+    next_observations = torch.FloatTensor(next_observations.reshape(batch_size, seq_len, channel, height, width)).to(device)
+    dones = torch.FloatTensor(dones.reshape(batch_size, seq_len, -1)).to(device)
 
-    #
-
-
-
-    # h_target, c_target = Q_target_net.init_hidden_state(batch_size=batch_size, training=True)
-    h_target, c_target = Q_target_net.init_hidden_state(batch_size=1, training=True)
+    h_target, c_target = Q_target_net.init_hidden_state(batch_size=batch_size, training=True)
 
     q_target, _, _ = Q_target_net(next_observations, h_target.to(device), c_target.to(device))
 
-    q_target_max = q_target.max(2)[0].detach()
-    expected_q_a = rewards + gamma * q_target_max * dones
+    q_target_max = q_target.max(2)[0].view(batch_size, seq_len, -1).detach()
+    targets = rewards + gamma * q_target_max * dones
 
-    # h, c = Q_net.init_hidden_state(batch_size=batch_size, training=True)
-    h, c = Q_net.init_hidden_state(batch_size=1, training=True)
+    h, c = Q_net.init_hidden_state(batch_size=batch_size, training=True)
     q_out, _, _ = Q_net(observations, h.to(device), c.to(device))
     q_a = q_out.gather(2, actions)
 
     # Multiply Importance Sampling weights to loss
-    loss = F.smooth_l1_loss(q_a, expected_q_a)
+    loss = F.smooth_l1_loss(q_a, targets)
 
     # Update Network
     optimizer.zero_grad()
     loss.backward()
-    for param in Q_net.parameters():
-        param.grad.data.clamp_(-1, 1)
     optimizer.step()
 
 
 if __name__ == "__main__":
+    t0 = time.time()
+
     # Env parameters
     model_name = "myDRQN"
     env_name = "CartPole-v0"
-    seed = 0
+    seed = 10
     save_model_flag = True
 
     # Set gym environment
@@ -291,39 +304,35 @@ if __name__ == "__main__":
         os.makedirs("./models")
 
     # model parameters
+    # 适当设置batch size，过小的经验池容量和batchsize导致收敛到局部最优，结果呈现震荡形式
     learning_rate = 1e-3
     batch_size = 16
-    # eps_start = 0.1
-    # eps_end = 0.001
-    # eps_decay = 0.995
     tau = 1e-2
-    max_step = 2000
-    max_episodes = 1000
-    min_epi_num = 20  # Start moment to train the Q network
+    max_steps = 2000
+    max_episodes = 600
+    min_epi_num = 64  # Start moment to train the Q network
 
     # Initiate the network and set the optimizer
     env.reset()
     picUtil = PicUtils()
     init_screen = picUtil.get_screen()
-    _, _, screen_height, screen_width = init_screen.shape
+    _, screen_height, screen_width = init_screen.shape
     n_actions = env.action_space.n
     Q_net = CriticNetwork(screen_height, screen_width, n_actions).to(device)
     Q_target_net = CriticNetwork(screen_height, screen_width, n_actions).to(device)
     optimizer = optim.Adam(Q_net.parameters(), lr=learning_rate)
 
     # Initiate the ReplayBuffer
-    replay_buffer = ReplayBuffer(max_epi_num=max_episodes)  # 初始测试采用sequential update
-    # replay_buffer = ReplayBuffer(max_epi_num=max_episodes, random_update=True, batch_size=batch_size, lookup_step=20)
+    replay_buffer = ReplayBuffer(max_epi_num=200, max_epi_len=600,
+                                 random_update=True, batch_size=batch_size, lookup_step=20)
 
     # other parameters
-    EPS_START = 0.9
-    EPS_END = 0.05
-    EPS_DECAY = 200  # 越小，eps_threshold下降得越快
-    TARGET_UPDATE = 5
-    steps_done = 0
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-                    math.exp(-1. * steps_done / EPS_DECAY)
+    eps_start = 0.1
+    eps_end = 0.001
+    eps_decay = 0.995
+    epsilon = eps_start
     gamma = 0.99
+    TARGET_UPDATE = 4
 
     # output the reward
     print_per_iter = 20
@@ -334,74 +343,114 @@ if __name__ == "__main__":
     for i in range(max_episodes):
         # Initialize the environment and state
         env.reset()
-        last_screen = picUtil.get_screen()
-        current_screen = picUtil.get_screen()
-        state = current_screen - last_screen        # state 为 BCHW     B x 3 x 160 x 360
+        state = picUtil.get_screen()
         h, c = Q_net.init_hidden_state(batch_size=batch_size, training=False)
 
         # 创建存储当前episode的临时buffer
-        sub_replay_buffer = SubReplayBuffer(max_step)
+        sub_replay_buffer = SubReplayBuffer()
         
-        for t in count():
+        for t in range(max_steps):
             # Select and perform an action
-            eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-                            math.exp(-1. * steps_done / EPS_DECAY)
-            steps_done += 1
-            action, h, c = Q_net.sample_action(state.to(device),
+            action, h, c = Q_net.sample_action(state.unsqueeze(0).unsqueeze(0).to(device),  # state 为 B seq CHW     B x seq x 3 x 160 x 360
                                                h=h.to(device),
                                                c=c.to(device),
-                                               epsilon=eps_threshold)
+                                               epsilon=epsilon)
 
-            _, reward, done, _ = env.step(action) # 直接action和action.item()有什么区别呢？
-            # reward是一个float格式的数值，转换为tensor
-            reward = torch.tensor([reward], device=device)
+            _, reward, done, _ = env.step(action)
+            # reward是一个float格式的数值
             score += reward
             score_sum += reward
 
-            # Observe new state
-            last_screen = current_screen
-            current_screen = picUtil.get_screen()
-            if not done:
-                next_state = current_screen - last_screen
-            else:
-                next_state = None
-
+            next_state = picUtil.get_screen()
             done_mask = 0.0 if done else 1.0
-            # Store the transition in sub_replay_buffer
-            sub_replay_buffer.push(state, action, next_state, reward, done_mask)
+            sub_replay_buffer.put(s=np.array(state), a=action, next_s=np.array(next_state), r=reward, done=done_mask)
 
             # Move to the next state
             state = next_state
 
             # Perform one step of the optimization (on the policy network)
             if len(replay_buffer) >= min_epi_num:
-                optimize_model(Q_net, Q_target_net, replay_buffer, batch_size, gamma)
+                optimize_model(Q_net=Q_net, Q_target_net=Q_target_net, replay_buffer=replay_buffer, batch_size=batch_size, gamma=gamma, height=screen_height, width=screen_width)
 
                 if (t + 1) % TARGET_UPDATE == 0:
                     # Q_target_net.load_state_dict(Q_net.state_dict()) # naive update
                     for target_param, local_param in zip(Q_target_net.parameters(), Q_net.parameters()):  # <- soft update
                         target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
-            # # 更新eps, 因为采用了DQN的渐进，放弃了这里的linear annealing
-            # epsilon = max(eps_end, epsilon * eps_decay)  # Linear annealing
-
             if done:
                 break
 
+        epsilon = max(eps_end, epsilon * eps_decay)  # Linear annealing
         replay_buffer.put(sub_replay_buffer)
         score = 0
 
         # 隔一段时间，输出一次训练的结果
         if i % print_per_iter == 0 and i != 0:
             print("n_episode :{}, score : {:.1f}, n_buffer : {}, eps : {:.1f}%".format(
-                i, score_sum / print_per_iter, len(replay_buffer), eps_threshold * 100))
+                i, score_sum / print_per_iter, len(replay_buffer), epsilon * 100))
             score_sum = 0.0
 
     # save the model
     if save_model_flag:
-        torch.save(Q_net.state_dict(), file_name)
+        torch.save(Q_net.state_dict(), f"./models/{file_name}")
 
+    t1 = time.time()
+    print(f"运行时间为：{t1-t0:.2f}s")
 
 '''
 https://zhuanlan.zhihu.com/p/524650878
+'''
+
+'''
+n_episode :20, score : 9.9, n_buffer : 21, eps : 9.0%
+n_episode :40, score : 18.2, n_buffer : 41, eps : 8.1%
+n_episode :60, score : 32.1, n_buffer : 61, eps : 7.4%
+n_episode :80, score : 44.3, n_buffer : 81, eps : 6.7%
+n_episode :100, score : 50.6, n_buffer : 100, eps : 6.0%
+n_episode :120, score : 61.6, n_buffer : 100, eps : 5.5%
+n_episode :140, score : 96.8, n_buffer : 100, eps : 4.9%
+n_episode :160, score : 53.5, n_buffer : 100, eps : 4.5%
+n_episode :180, score : 36.9, n_buffer : 100, eps : 4.0%
+n_episode :200, score : 56.8, n_buffer : 100, eps : 3.7%
+n_episode :220, score : 58.9, n_buffer : 100, eps : 3.3%
+n_episode :240, score : 73.5, n_buffer : 100, eps : 3.0%
+n_episode :260, score : 100.2, n_buffer : 100, eps : 2.7%
+n_episode :280, score : 120.0, n_buffer : 100, eps : 2.4%
+n_episode :300, score : 58.6, n_buffer : 100, eps : 2.2%
+n_episode :320, score : 61.5, n_buffer : 100, eps : 2.0%
+n_episode :340, score : 66.2, n_buffer : 100, eps : 1.8%
+n_episode :360, score : 51.5, n_buffer : 100, eps : 1.6%
+n_episode :380, score : 69.1, n_buffer : 100, eps : 1.5%
+n_episode :400, score : 73.5, n_buffer : 100, eps : 1.3%
+n_episode :420, score : 67.3, n_buffer : 100, eps : 1.2%
+n_episode :440, score : 62.7, n_buffer : 100, eps : 1.1%
+n_episode :460, score : 60.5, n_buffer : 100, eps : 1.0%
+n_episode :480, score : 79.8, n_buffer : 100, eps : 0.9%
+n_episode :500, score : 78.0, n_buffer : 100, eps : 0.8%
+n_episode :520, score : 79.5, n_buffer : 100, eps : 0.7%
+n_episode :540, score : 78.5, n_buffer : 100, eps : 0.7%
+n_episode :560, score : 79.0, n_buffer : 100, eps : 0.6%
+n_episode :580, score : 60.1, n_buffer : 100, eps : 0.5%
+n_episode :600, score : 78.7, n_buffer : 100, eps : 0.5%
+n_episode :620, score : 62.9, n_buffer : 100, eps : 0.4%
+n_episode :640, score : 70.3, n_buffer : 100, eps : 0.4%
+n_episode :660, score : 41.5, n_buffer : 100, eps : 0.4%
+n_episode :680, score : 69.5, n_buffer : 100, eps : 0.3%
+n_episode :700, score : 55.1, n_buffer : 100, eps : 0.3%
+n_episode :720, score : 52.8, n_buffer : 100, eps : 0.3%
+n_episode :740, score : 68.8, n_buffer : 100, eps : 0.2%
+n_episode :760, score : 56.3, n_buffer : 100, eps : 0.2%
+n_episode :780, score : 45.3, n_buffer : 100, eps : 0.2%
+n_episode :800, score : 68.7, n_buffer : 100, eps : 0.2%
+n_episode :820, score : 54.5, n_buffer : 100, eps : 0.2%
+n_episode :840, score : 82.5, n_buffer : 100, eps : 0.1%
+n_episode :860, score : 74.7, n_buffer : 100, eps : 0.1%
+n_episode :880, score : 75.8, n_buffer : 100, eps : 0.1%
+n_episode :900, score : 69.8, n_buffer : 100, eps : 0.1%
+n_episode :920, score : 46.5, n_buffer : 100, eps : 0.1%
+n_episode :940, score : 60.4, n_buffer : 100, eps : 0.1%
+n_episode :960, score : 53.9, n_buffer : 100, eps : 0.1%
+n_episode :980, score : 32.2, n_buffer : 100, eps : 0.1%
+
+进程已结束，退出代码 0
 '''
