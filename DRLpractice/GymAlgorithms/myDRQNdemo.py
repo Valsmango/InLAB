@@ -453,4 +453,37 @@ n_episode :960, score : 53.9, n_buffer : 100, eps : 0.1%
 n_episode :980, score : 32.2, n_buffer : 100, eps : 0.1%
 
 进程已结束，退出代码 0
+
+n_episode :20, score : 9.9, n_buffer : 21, eps : 9.0%
+n_episode :40, score : 9.7, n_buffer : 41, eps : 8.1%
+n_episode :60, score : 9.3, n_buffer : 61, eps : 7.4%
+n_episode :80, score : 12.4, n_buffer : 81, eps : 6.7%
+n_episode :100, score : 24.8, n_buffer : 101, eps : 6.0%
+n_episode :120, score : 26.2, n_buffer : 121, eps : 5.5%
+n_episode :140, score : 34.3, n_buffer : 141, eps : 4.9%
+n_episode :160, score : 37.5, n_buffer : 161, eps : 4.5%
+n_episode :180, score : 80.4, n_buffer : 181, eps : 4.0%
+n_episode :200, score : 82.8, n_buffer : 200, eps : 3.7%
+n_episode :220, score : 57.8, n_buffer : 200, eps : 3.3%
+n_episode :240, score : 78.2, n_buffer : 200, eps : 3.0%
+n_episode :260, score : 100.7, n_buffer : 200, eps : 2.7%
+n_episode :280, score : 84.7, n_buffer : 200, eps : 2.4%
+n_episode :300, score : 117.7, n_buffer : 200, eps : 2.2%
+n_episode :320, score : 98.9, n_buffer : 200, eps : 2.0%
+n_episode :340, score : 99.3, n_buffer : 200, eps : 1.8%
+n_episode :360, score : 94.8, n_buffer : 200, eps : 1.6%
+n_episode :380, score : 80.8, n_buffer : 200, eps : 1.5%
+n_episode :400, score : 92.5, n_buffer : 200, eps : 1.3%
+n_episode :420, score : 77.5, n_buffer : 200, eps : 1.2%
+n_episode :440, score : 57.2, n_buffer : 200, eps : 1.1%
+n_episode :460, score : 49.0, n_buffer : 200, eps : 1.0%
+n_episode :480, score : 65.3, n_buffer : 200, eps : 0.9%
+n_episode :500, score : 82.0, n_buffer : 200, eps : 0.8%
+n_episode :520, score : 57.8, n_buffer : 200, eps : 0.7%
+n_episode :540, score : 76.7, n_buffer : 200, eps : 0.7%
+n_episode :560, score : 59.6, n_buffer : 200, eps : 0.6%
+n_episode :580, score : 59.8, n_buffer : 200, eps : 0.5%
+运行时间为：2655.29s
+
+进程已结束，退出代码 0
 '''

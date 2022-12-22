@@ -27,37 +27,30 @@ import time
 
 class CriticNetwork(nn.Module):
     def __init__(self, output_size):
+        # 输入参数 h 是指state图片的height， w 是state图片的width
         # 继承nn.Module：
         super(CriticNetwork, self).__init__()
-        '''
-        待填充，网络结构
-        '''
-
-    def forward(self, x):
-        # x 即为 state
-        '''
-        待填充，数据格式转换
-        '''
-        return self.linear(x)
+        # 网络结构：
 
 
-class ActorNetwork(nn.Module):
-    def __init__(self, output_size):
-        # 继承nn.Module：
-        super(CriticNetwork, self).__init__()
-        '''
-        待填充，网络结构
-        '''
+    def init_hidden_state(self, batch_size, training=None):
+        if training is True:
+            return torch.zeros([1, batch_size, self.hidden_size]), torch.zeros([1, batch_size, self.hidden_size])
+        else:
+            return torch.zeros([1, 1, self.hidden_size]), torch.zeros([1, 1, self.hidden_size])
 
-    def forward(self, x):
-        # x 即为 state
-        '''
-        待填充，数据格式转换
-        '''
-        return self.linear(x)
+    def forward(self, x, h_0, c_0):
+        # x 即为 state，B Seq_len CHW   B x Seq_len x 3 x 160 x 360
 
-    def sample_action(self, state, epsilon):
-        output = self.forward(state)
+        return self.linear(x), h_t, c_t
+
+    '''
+    改进：这里的epsilon改进为自适应的，和 DQN demo 中的一样，随着steps_done增大，epsilon_threshold减小，从0.9减小到0.362（steps_done=200时），到0；
+    这里虽然取名叫CriticNetwork，但是因为有了sample_action这个函数，实际上，算是把Cirtic和Actor组成了一个系统的PolicyNetwork
+    '''
+
+    def sample_action(self, obs, h, c, epsilon):
+        output = self.forward(obs, h, c)
 
         if random.random() < epsilon:
             return random.randint(0, 1), output[1], output[2]
@@ -66,10 +59,12 @@ class ActorNetwork(nn.Module):
 
 
 class ReplayBuffer:
-    def __init__(self, max_epi_num=100, max_epi_len=500, batch_size=1):
+    def __init__(self, random_update=False, max_epi_num=100, max_epi_len=500, batch_size=1, lookup_step=None):
+        self.random_update = random_update  # if False, sequential update
         self.max_epi_num = max_epi_num
         self.max_epi_len = max_epi_len
         self.batch_size = batch_size
+        self.lookup_step = lookup_step
         self.replaybuffer = collections.deque(maxlen=self.max_epi_num)
 
     def put(self, subreplaybuffer):
@@ -77,11 +72,27 @@ class ReplayBuffer:
 
     def sample(self):
         sampled_buffer = []
-        '''
-        待填充，选出samples
-        '''
+        if self.random_update:  # Random upodate
+            sampled_episodes = random.sample(self.replaybuffer, self.batch_size)
+            min_step = self.max_epi_len
+            for episode in sampled_episodes:
+                min_step = min(min_step, len(episode))  # get minimum step from sampled episodes
 
-        return sampled_buffer  # buffers, sequence_length
+            for episode in sampled_episodes:
+                if min_step > self.lookup_step:  # sample buffer with lookup_step size
+                    idx = np.random.randint(0, len(episode) - self.lookup_step + 1)
+                    sample = episode.sample(random_update=self.random_update, lookup_step=self.lookup_step, idx=idx)
+                    sampled_buffer.append(sample)
+                else:
+                    idx = np.random.randint(0, len(episode) - min_step + 1)  # sample buffer with minstep size
+                    sample = episode.sample(random_update=self.random_update, lookup_step=min_step, idx=idx)
+                    sampled_buffer.append(sample)
+
+        else:  # 默认情况，Sequential update, 该模式下，batch_size、lookup_step属性失效（或者说batch_size = 1），只是随机找一整个episode
+            idx = np.random.randint(0, len(self.replaybuffer))
+            sampled_buffer.append(self.replaybuffer[idx].sample(random_update=self.random_update))
+
+        return sampled_buffer, len(sampled_buffer[0]['done'])  # buffers, sequence_length
 
     def __len__(self):
         return len(self.replaybuffer)
@@ -127,7 +138,7 @@ class SubReplayBuffer:
 
 
 def optimize_model(Q_net=None, Q_target_net=None, replay_buffer=None, batch_size=1, gamma=0.99):
-    samples = replay_buffer.sample()
+    samples, seq_len = replay_buffer.sample()
 
     observations = []
     actions = []
@@ -148,9 +159,23 @@ def optimize_model(Q_net=None, Q_target_net=None, replay_buffer=None, batch_size
     next_observations = np.array(next_observations)
     dones = np.array(dones)
 
-    '''
-    待填充，讲数据转换为Tensor，并计算网络的Loss
-    '''
+    observations = torch.FloatTensor(observations.reshape(batch_size, seq_len, -1)).to(device)
+    actions = torch.LongTensor(actions.reshape(batch_size, seq_len, -1)).to(device)
+    rewards = torch.FloatTensor(rewards.reshape(batch_size, seq_len, -1)).to(device)
+    next_observations = torch.FloatTensor(next_observations.reshape(batch_size, seq_len, -1)).to(
+        device)
+    dones = torch.FloatTensor(dones.reshape(batch_size, seq_len, -1)).to(device)
+
+    h_target, c_target = Q_target_net.init_hidden_state(batch_size=batch_size, training=True)
+
+    q_target, _, _ = Q_target_net(next_observations, h_target.to(device), c_target.to(device))
+
+    q_target_max = q_target.max(2)[0].view(batch_size, seq_len, -1).detach()
+    targets = rewards + gamma * q_target_max * dones
+
+    h, c = Q_net.init_hidden_state(batch_size=batch_size, training=True)
+    q_out, _, _ = Q_net(observations, h.to(device), c.to(device))
+    q_a = q_out.gather(2, actions)
 
 
     # Multiply Importance Sampling weights to loss
