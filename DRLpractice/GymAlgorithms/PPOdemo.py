@@ -56,9 +56,6 @@ class ReplayBuffer:
         self.value.append(v)
 
     def sample(self):
-        '''
-        待填充，选出samples
-        '''
         batch_step = np.arange(0, len(self.done), self.batch_size)  # np.arange(start = 0, stop = len, step = batch_sz) 即： 【0， batch_sz, batch_sz*2, ... < stop】
         indicies = np.arange(len(self.done), dtype=np.int64)  # np.arange(start = 0, stop = len, step = 1)
         np.random.shuffle(indicies)     # 将indicies弄成乱序
@@ -183,7 +180,8 @@ class DiscretePPO:
                 discount = 1
                 a_i = 0
                 for k in range(i, len(reward) - 1):
-                    a_i += discount * (reward[k] + self.gamma * value[k+1] * (1 - int(done[k])) - value[k])
+                    # 这里要注意，当done的时候，gamma * v（next_state） == 0
+                    a_i += discount * (reward[k] + self.gamma * value[k+1] * int(done[k]) - value[k])
                     discount *= self.gamma * self.gae_lambda
                 advantage[i] = a_i
             advantage = torch.tensor(advantage).to(device)

@@ -30,6 +30,9 @@ def plot_one_alg_rewards(rewards, algo_name, title="rewards"):
 
 
 def plot_several_alg_rewards(rewards, algo_name, title="rewards"):
+    # rewards:  格式为 Ndarray， 算法种数 x 每种算法的训练组数 x 每一组的数据（ 完整训练一次的每个episode的得分 ）
+    # algo_name:   格式为 Ndarray， 算法种数 x 每种模型的名字
+    # title:   图象名字
     plt.figure()
     df = []
     for i in range(len(rewards)):
