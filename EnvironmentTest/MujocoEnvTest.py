@@ -21,3 +21,23 @@ print(sim.data.qpos)
 sim.step()
 print(sim.data.qpos)
 '''
+
+
+'''
+import gym
+
+env = gym.make('CartPole-v0')
+env.reset()
+for _ in range(100):
+    env.render()
+    # take a random action
+    env.step(env.action_space.sample())
+'''
+
+'''
+Notes：
+    CartPole-v0 只测试gym
+    而 Ant-v2 则测试gym + mujoco-py
+    import mujoco_py的环境是mujoco官方给的测试用例，只用于测试mujoco-py
+
+'''
