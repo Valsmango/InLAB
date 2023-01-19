@@ -24,3 +24,12 @@ env = gym.make('CartPole-v0')
 print("CartPole-v0 is available")
 env.close()
 print("")
+
+"test atari"
+env = gym.make("SpaceInvaders-v0")
+env.reset()
+for _ in range(1000):
+    env.render()
+    # take a random action
+    env.step(env.action_space.sample())
+env.close()

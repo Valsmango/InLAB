@@ -1,12 +1,3 @@
-'''
-some tricks:
-https://zhuanlan.zhihu.com/p/512327050
-
-
-references:
-https://github.com/Lizhi-sjtu/DRL-code-pytorch/tree/main/9.PPO-discrete-RNN
-'''
-
 import os
 import random
 
@@ -20,14 +11,6 @@ from torch.distributions.categorical import Categorical
 # from torch.utils.tensorboard import SummaryWriter
 
 import DRLpractice.GymAlgorithms.plotUtils.PlotUtils as pltutil
-'''
-tensorboardä½¿ç”¨ï¼š
-    https://blog.51cto.com/u_15279692/5520767
-
-
-tensorboard --logdir=./runs/tensorboard/ppo
-'''
-
 import time
 
 # set device
@@ -39,33 +22,44 @@ class ReplayBuffer:
         self.state = []
         self.action = []
         self.reward = []
+        self.next_state = []
         self.done = []
-        self.prob = []
-        self.value = []
         self.batch_size = batch_size
 
-    def put(self, s, a, r, done, p, v):
+    def put(self, s, a, r, s_next, done):
         self.state.append(s)
         self.action.append(a)
         self.reward.append(r)
+        self.next_state.append(s_next)
         self.done.append(done)
-        self.prob.append(p)
-        self.value.append(v)
 
     def sample(self):
-        batch_step = np.arange(0, len(self.done), self.batch_size)  # np.arange(start = 0, stop = len, step = batch_sz) å³ï¼š ã€0ï¼Œ batch_sz, batch_sz*2, ... < stopã€‘
+        '''
+        ¾¿¾¹ÊÇÂÒĞò»¹ÊÇÖ»ĞèÒªÍùÇ°»ØËİbatch²½ÄØ£¿
+        '''
+        batch_step = np.arange(0, len(self.done), self.batch_size)  # np.arange(start = 0, stop = len, step = batch_sz) ¼´£º ¡¾0£¬ batch_sz, batch_sz*2, ... < stop¡¿
         indicies = np.arange(len(self.done), dtype=np.int64)  # np.arange(start = 0, stop = len, step = 1)
-        np.random.shuffle(indicies)     # å°†indicieså¼„æˆä¹±åº
+        np.random.shuffle(indicies)     # ½«indiciesÅª³ÉÂÒĞò
         batches = [indicies[i:i+self.batch_size] for i in batch_step]
-        return self.state, self.action, self.reward, self.done, self.prob, self.value, batches
+        batch_state = []
+        batch_action = []
+        batch_reward = []
+        batch_next_state = []
+        batch_done = []
+        for batch in batches:
+            batch_state.append(np.array(self.state)[batch])
+            batch_action.append(np.array(self.action)[batch])
+            batch_reward.append(np.array(self.reward)[batch])
+            batch_next_state.append(np.array(self.next_state)[batch])
+            batch_done.append(np.array(self.done)[batch])
+        return batch_state, batch_action, batch_reward, batch_next_state, batch_done
 
     def clear(self):
         self.state = []
         self.action = []
         self.reward = []
+        self.next_state = []
         self.done = []
-        self.prob = []
-        self.value = []
 
     def __len__(self) -> int:
         return len(self.done)
@@ -73,14 +67,14 @@ class ReplayBuffer:
 
 class CriticNetwork(nn.Module):
     '''
-    Criticè¾“å…¥ä¸ºï¼šstate
-    è¾“å‡ºä¸ºï¼š value(state)çš„ä¼°è®¡å€¼
+    CriticÊäÈëÎª£ºstate
+    Êä³öÎª£º value(state)µÄ¹À¼ÆÖµ
     '''
-    def __init__(self, state_space, output_size=1):
-        # ç»§æ‰¿nn.Moduleï¼š
+    def __init__(self, state_space, output_size=1, hidden_space=64):
+        # ¼Ì³Ğnn.Module£º
         super(CriticNetwork, self).__init__()
 
-        self.hidden_space = 64
+        self.hidden_space = hidden_space
         self.state_space = state_space
         self.output_size = output_size
 
@@ -94,27 +88,22 @@ class CriticNetwork(nn.Module):
         return self.Linear3(x)
 
 
-class ActorNetwork(nn.Module):
+class DiscreteActorNetwork(nn.Module):
     '''
-    Actrorè¾“å…¥ä¸ºï¼šstate
-    è¾“å‡ºä¸ºï¼š actionæ¦‚ç‡åˆ†å¸ƒ
+    ActrorÊäÈëÎª£ºstate
+    Êä³öÎª£º action¸ÅÂÊ·Ö²¼
 
-        éšæœºæ€§ç­–ç•¥ï¼Œç›¸å½“äºè®­ç»ƒè¿‡ç¨‹ä¸­çš„æ¢ç´¢explorationï¼Œå¯¹åº”çš„æ“ä½œå°±æ˜¯é‡‡æ ·
-        å¼ºåŒ–å­¦ä¹ ä¸­æœ‰ä¸¤ç§å¸¸è§çš„éšæœºæ€§ç­–ç•¥ï¼š
-            åˆ†ç±»ç­–ç•¥categorical policyï¼šç”¨æ¥ç¦»æ•£åŠ¨ä½œç©ºé—´é—®é¢˜
-            åˆ†ç±»ç­–ç•¥å¯ä»¥çœ‹åšç¦»æ•£åŠ¨ä½œç©ºé—´çš„åˆ†ç±»å™¨ â€”â€” è¾“å…¥æ˜¯è§‚æµ‹ï¼Œç»è¿‡ä¸€äº›ç¥ç»ç½‘ç»œå±‚ï¼Œ
-            è¾“å‡ºæ¯ä¸ªåŠ¨ä½œçš„logitsï¼Œæœ€åç”¨softmaxè½¬åŒ–ä¸ºæ¯ä¸€ä¸ªåŠ¨ä½œçš„æ¦‚ç‡probability
-            ç»™å®šæ¯ä¸€ä¸ªåŠ¨ä½œçš„æ¦‚ç‡ï¼Œå¯ä»¥ä½¿ç”¨Pytorchä¸­çš„ä¸€äº›é‡‡æ ·å‡½æ•°è¿›è¡Œé‡‡æ ·ï¼Œæ¯”å¦‚Categorical distributions in PyTorchï¼Œtorch.multinomial
-
-            å¯¹è§’é«˜æ–¯ç­–ç•¥diagnoal Gaussian policyï¼šç”¨äºè¿ç»­åŠ¨ä½œç©ºé—´é—®é¢˜
-            è¾“å‡ºç»´åº¦ä¸ºaction_dimï¼Œæ„ä¹‰æ˜¯æ¯ä¸ªactionçš„é«˜æ–¯ç­–ç•¥çš„å‡å€¼
-            å¦å¤–ï¼ŒActorç½‘ç»œè¿˜æœ‰action_dimä¸ªæ ‡å‡†å·®å‚æ•°ï¼Œè¿™æ ·åœ¨è¾“å…¥ä¸€ä¸ªstateåï¼Œæ¯ä¸ªåŠ¨ä½œéƒ½å¯¹åº”ä¸€ä¸ªä¸€ç»´çš„é«˜æ–¯åˆ†å¸ƒã€‚
-            å…³äºå™ªå£°å‘é‡å¯ä»¥é€šè¿‡ torch.normalæ¥å¾—åˆ°ã€‚åŒæ ·ï¼Œä¹Ÿå¯ä»¥é€šè¿‡æ„å»ºåˆ†å¸ƒå¯¹è±¡æ¥ç”Ÿæˆé‡‡æ ·ç»“æœï¼Œ torch.distributions.Normalï¼Œåè€…çš„ä¼˜åŠ¿æ˜¯è¿™äº›å¯¹è±¡ä¹Ÿå¯ä»¥ç”¨æ¥è®¡ç®—å¯¹æ•°ä¼¼ç„¶ã€‚
+        Ëæ»úĞÔ²ßÂÔ£¬Ïàµ±ÓÚÑµÁ·¹ı³ÌÖĞµÄÌ½Ë÷exploration£¬¶ÔÓ¦µÄ²Ù×÷¾ÍÊÇ²ÉÑù
+        Ç¿»¯Ñ§Ï°ÖĞÓĞÁ½ÖÖ³£¼ûµÄËæ»úĞÔ²ßÂÔ£º
+            ·ÖÀà²ßÂÔcategorical policy£ºÓÃÀ´ÀëÉ¢¶¯×÷¿Õ¼äÎÊÌâ
+            ·ÖÀà²ßÂÔ¿ÉÒÔ¿´×öÀëÉ¢¶¯×÷¿Õ¼äµÄ·ÖÀàÆ÷ ¡ª¡ª ÊäÈëÊÇ¹Û²â£¬¾­¹ıÒ»Ğ©Éñ¾­ÍøÂç²ã£¬
+            Êä³öÃ¿¸ö¶¯×÷µÄlogits£¬×îºóÓÃsoftmax×ª»¯ÎªÃ¿Ò»¸ö¶¯×÷µÄ¸ÅÂÊprobability
+            ¸ø¶¨Ã¿Ò»¸ö¶¯×÷µÄ¸ÅÂÊ£¬¿ÉÒÔÊ¹ÓÃPytorchÖĞµÄÒ»Ğ©²ÉÑùº¯Êı½øĞĞ²ÉÑù£¬±ÈÈçCategorical distributions in PyTorch£¬torch.multinomial
     '''
-    def __init__(self, state_space, action_space):
-        super(ActorNetwork, self).__init__()
+    def __init__(self, state_space, action_space, hidden_space=64):
+        super(DiscreteActorNetwork, self).__init__()
 
-        self.hidden_space = 64
+        self.hidden_space = hidden_space
         self.state_space = state_space
         self.action_space = action_space
 
@@ -125,7 +114,7 @@ class ActorNetwork(nn.Module):
     def forward(self, x):
         x = F.relu(self.Linear1(x))
         x = F.relu(self.Linear2(x))
-        x = F.softmax(self.Linear3(x), dim=-1)  # softmax ä»æœ€åä¸€ä¸ªç»´åº¦ä¸Šè¿›è¡Œè®¡ç®—ï¼Œå¾—åˆ°çš„æ•°æ®ç»´åº¦è¿˜æ˜¯[batch_sizeæˆ–è€…1, 2]ï¼Œ 2ä¸ºaction_spaceï¼Œå³æ¯ä¸ªactionçš„è¢«é€‰æ‹©æ¦‚ç‡
+        x = F.softmax(self.Linear3(x), dim=-1)
         x = Categorical(x)
         return x
 
@@ -139,10 +128,12 @@ class DiscretePPO:
 
         self.batch_size = batch_size
         self.memory = ReplayBuffer(self.batch_size)
-        self.actor = ActorNetwork(state_space=self.state_space, action_space=self.action_space)
+        self.actor = DiscreteActorNetwork(state_space=self.state_space, action_space=self.action_space)
         self.critic = CriticNetwork(state_space=self.state_space)
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), self.actor_lr)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), self.critic_lr)
 
         self.epochs = epochs
         self.gamma = gamma
@@ -150,70 +141,69 @@ class DiscretePPO:
 
     def sample_action(self, state):
         '''
-        state: è¾“å…¥æ—¶çš„æ ¼å¼åº”å½“ä¸ºtodeviceäº†çš„tensor
-        ä¸ºä»€ä¹ˆä¸ç”¨ epsilon greedy ï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿï¼Ÿ
+        state: ÊäÈëÊ±µÄ¸ñÊ½Ó¦µ±ÎªtodeviceÁËµÄtensor
+        ÎªÊ²Ã´²»ÓÃ epsilon greedy £¿£¿£¿£¿£¿£¿£¿£¿£¿£¿£¿£¿£¿£¿£¿£¿
         '''
-        state = np.array([state])  # å…ˆè½¬æˆæ•°ç»„å†è½¬tensoræ›´é«˜æ•ˆ
+        state = np.array([state])  # ÏÈ×ª³ÉÊı×éÔÙ×ªtensor¸ü¸ßĞ§
         state = torch.tensor(state, dtype=torch.float).to(device)
         distribution = self.actor(state)
         action = distribution.sample()
         probs = torch.squeeze(distribution.log_prob(action)).item()
-        action = torch.squeeze(action).item()   # å› ä¸ºactionè¿˜æ˜¯sizeï¼ˆ[batch_sizeæˆ–1 , 2]ï¼‰ç»´åº¦çš„æ•°æ®ï¼Œå®åˆ™åªéœ€è¦sizeï¼ˆ[2]ï¼‰çš„æ•°æ®
+        action = torch.squeeze(action).item()
 
         value = self.critic(state)
-        value = torch.squeeze(value).item()  # å› ä¸ºvalueè¿˜æ˜¯sizeï¼ˆ[batch_sizeæˆ–1 , 1]ï¼‰ç»´åº¦çš„æ•°æ®ï¼Œå®åˆ™åªéœ€è¦sizeï¼ˆ[1]ï¼‰çš„æ•°æ®
+        value = torch.squeeze(value).item()
 
         return action, probs, value
 
     def update(self):
         '''
-        ç©å®Œä¸€æ•´æŠŠæ¸¸æˆæ‰èƒ½è¿›è¡Œå¤šæ¬¡æ›´æ–°ï¼Œå’ŒDQNè¿™ç§è†ˆå‡ æ­¥å°±æ›´æ–°ä¸€æ¬¡çš„ä¸ä¸€æ ·
+        Ã¿¸ôÒ»¶ÎÊ±¼ä¸üĞÂÒ»´Î
         '''
         for _ in range(self.epochs):
-            state, action, reward, done, old_prob, value, batches = self.memory.sample()
+            state, action, reward, next_state, done = self.memory.sample()
+            state = torch.tensor(state, dtype=torch.float).to(device)
+
+
+
             # GAE
             advantage = np.zeros(len(reward), dtype=np.float32)
             for i in range(len(reward) - 1):
                 discount = 1
                 a_i = 0
                 for k in range(i, len(reward) - 1):
-                    # è¿™é‡Œè¦æ³¨æ„ï¼Œå½“doneçš„æ—¶å€™ï¼Œgamma * vï¼ˆnext_stateï¼‰ == 0
-                    a_i += discount * (reward[k] + self.gamma * value[k+1] * int(done[k]) - value[k])
+                    # ÕâÀïÒª×¢Òâ£¬µ±doneµÄÊ±ºò£¬gamma * v£¨next_state£© == 0
+                    a_i += discount * (reward[k] + self.gamma * self.critic(next_state) * int(done[k]) - self.critic(state))
                     discount *= self.gamma * self.gae_lambda
                 advantage[i] = a_i
             advantage = torch.tensor(advantage).to(device)
             value = torch.tensor(value).to(device)
             for batch in batches:
                 batch_state = torch.tensor(np.array(state)[batch], dtype=torch.float).to(device)
-                batch_old_prob = torch.tensor(np.array(old_prob)[batch]).to(device)
+
                 batch_action = torch.tensor(np.array(action)[batch]).to(device)
-                # è®¡ç®—batch_new_prob
+                # ¼ÆËãbatch_new_prob
                 distribution = self.actor(batch_state)
-                batch_new_prob = distribution.log_prob(batch_action)
-                # è®¡ç®—actorçš„lossï¼Œå³æ ¸å¿ƒçš„æ›´æ–°å…¬å¼
+                batch_new_prob = distribution.log_prob(batch_action)    # ????????????
+                # ¼ÆËãactorµÄloss£¬¼´ºËĞÄµÄ¸üĞÂ¹«Ê½
                 prob_ratio = batch_new_prob.exp() / batch_old_prob.exp()
                 weighted_prob = prob_ratio * advantage[batch]
                 weighted_clipped_prob = torch.clamp(prob_ratio, 1 - self.clip, 1 + self.clip) * advantage[batch]
                 actor_loss = -torch.min(weighted_prob, weighted_clipped_prob).mean()
-                # æ›´æ–°actorç½‘ç»œ
-                actor_optimizer = optim.Adam(self.actor.parameters(), self.actor_lr)
-                actor_optimizer.zero_grad()
+                # ¸üĞÂactorÍøÂç
+                self.actor_optimizer.zero_grad()
                 actor_loss.backward()
-                actor_optimizer.step()
-                # è®¡ç®—criticçš„loss
+                self.actor_optimizer.step()
+                # ¼ÆËãcriticµÄloss
                 batch_critic_value = torch.squeeze(self.critic(batch_state))
                 batch_real_value = advantage[batch] + value[batch]
                 critic_loss = F.mse_loss(batch_real_value,
                                          batch_critic_value)  # critic_loss = (batch_real_value - batch_critic_value) ** 2    # critic_loss = critic_loss.mean()
-                # æ›´æ–°criticç½‘ç»œ
-                critic_optimizer = optim.Adam(self.critic.parameters(), self.critic_lr)
-                critic_optimizer.zero_grad()
+                # ¸üĞÂcriticÍøÂç
+                self.critic_optimizer.zero_grad()
                 critic_loss.backward()
-                critic_optimizer.step()
+                self.critic_optimizer.step()
         self.memory.clear()
-
-    def test_model(self):
-        pass
 
     def save_model(self):
         pass
@@ -246,7 +236,7 @@ if __name__ == "__main__":
 
     # Set seeds
     env.seed(seed)
-    # env.action_space.seed(seed)     # è¿™ä¸ªæ˜¯TD3ä¸­æåˆ°çš„seed
+    # env.action_space.seed(seed)     # Õâ¸öÊÇTD3ÖĞÌáµ½µÄseed
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
@@ -262,7 +252,7 @@ if __name__ == "__main__":
         os.makedirs("./models")
 
     # model parameters
-    # é€‚å½“è®¾ç½®batch sizeï¼Œè¿‡å°çš„ç»éªŒæ± å®¹é‡å’Œbatchsizeå¯¼è‡´æ”¶æ•›åˆ°å±€éƒ¨æœ€ä¼˜ï¼Œç»“æœå‘ˆç°éœ‡è¡å½¢å¼
+    # ÊÊµ±ÉèÖÃbatch size£¬¹ıĞ¡µÄ¾­Ñé³ØÈİÁ¿ºÍbatchsizeµ¼ÖÂÊÕÁ²µ½¾Ö²¿×îÓÅ£¬½á¹û³ÊÏÖÕğµ´ĞÎÊ½
     actor_learning_rate = 1e-3
     critic_learning_rate = 1e-3
     batch_size = 8
@@ -284,24 +274,24 @@ if __name__ == "__main__":
     # output the reward
     rewards = []
     ma_rewards = []
-    print_per_iter = 20     # æ¯ç©1æŠŠæ¸¸æˆè¿›è¡Œä¸€æ¬¡ç»“æœè¾“å‡º
+    print_per_iter = 20     # Ã¿Íæ1°ÑÓÎÏ·½øĞĞÒ»´Î½á¹ûÊä³ö
     score = 0
     score_sum = 0.0
 
-    # å¼€å§‹è®­ç»ƒ
+    # ¿ªÊ¼ÑµÁ·
     for i in range(max_episodes):
         # Initialize the environment and state
         state = env.reset()
         done = None
         while not done:
-            # æ¸²æŸ“
-            # env.render()
+            # äÖÈ¾
+            env.render()
 
             # Select and perform an action
             action, prob, val = model.sample_action(state)
             next_state, reward, done, _ = env.step(action)
-            # next_state = next_state[::2]
-            # rewardæ˜¯ä¸€ä¸ªfloatæ ¼å¼çš„æ•°å€¼
+            next_state = next_state[::2]    # CartPole-v0
+            # rewardÊÇÒ»¸öfloat¸ñÊ½µÄÊıÖµ
             score += reward
             score_sum += reward
             done_mask = 0.0 if done else 1.0
@@ -320,7 +310,7 @@ if __name__ == "__main__":
             ma_rewards.append(0.9 * ma_rewards[-1] + 0.1 * score)
         else:
             ma_rewards.append(score)
-        # éš”ä¸€æ®µæ—¶é—´ï¼Œè¾“å‡ºä¸€æ¬¡è®­ç»ƒçš„ç»“æœ
+        # ¸ôÒ»¶ÎÊ±¼ä£¬Êä³öÒ»´ÎÑµÁ·µÄ½á¹û
         if i % print_per_iter == 0 and i != 0:
             print("n_episode :{}, score : {:.1f}".format(i, score))
         # writer.add_scalar("rewards", score, i + 1)
@@ -331,6 +321,6 @@ if __name__ == "__main__":
 
     end_time = time.time()
     print("-----------------------------------------")
-    print(f"è¿è¡Œæ—¶é—´ä¸ºï¼š{end_time - start_time:.2f}s")
+    print(f"ÔËĞĞÊ±¼äÎª£º{end_time - start_time:.2f}s")
     print("-----------------------------------------")
     pltutil.plot_certain_training_rewards(rewards, "PPO", "PPO-CartPole rewards")

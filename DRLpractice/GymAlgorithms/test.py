@@ -3,6 +3,7 @@ import itertools
 import numpy as np
 import torch
 import time
+import gym
 from collections import namedtuple, deque
 import DRLpractice.GymAlgorithms.plotUtils.PlotUtils as pltutil
 
@@ -60,5 +61,13 @@ if __name__ == "__main__":
     # batches = [indicies[i:i + 4] for i in batch_step]
     # print(batches)       # [array([8, 7, 9, 6], dtype=int64), array([0, 2, 3, 4], dtype=int64), array([5, 1], dtype=int64)]
 
-    rewards_base = [[1.0, 2.0, 3.0, 4.0, 5.0], [1.1, 2.2, 3.3, 4.4, 5.5], [0.9, 1.9, 3.5, 4.5, 12]]
-    pltutil.plot_one_alg_rewards(rewards=rewards_base, algo_name="Algo-1")
+    # rewards_base = [[1.0, 2.0, 3.0, 4.0, 5.0], [1.1, 2.2, 3.3, 4.4, 5.5], [0.9, 1.9, 3.5, 4.5, 12]]
+    # pltutil.plot_one_alg_rewards(rewards=rewards_base, algo_name="Algo-1")
+
+    env = gym.make("MountainCar-v0")
+    n_actions = env.action_space.n
+    try:
+        n_states = env.observation_space.n
+    except AttributeError:
+        n_states = env.observation_space.shape[0]
+    print(f"action space:{n_actions}, state space:{n_states}")
