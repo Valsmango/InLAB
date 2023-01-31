@@ -10,6 +10,7 @@ from DRLpractice.UAV.UAVsingle.env import envController
 from DRLpractice.UAV.UAVsingle.algo import TD3
 
 import time
+from rl_plotter.logger import Logger
 
 
 # Runs policy for X episodes and returns average reward
@@ -18,6 +19,8 @@ import time
 def eval_policy(policy, env_name, seed, eval_episodes=10):
     eval_env = envController.getEnv(env_name)
     eval_env.seed(seed + 10)
+    torch.manual_seed(seed + 10)
+    np.random.seed(seed + 10)
 
     avg_reward = 0.
     for _ in range(eval_episodes):
@@ -33,6 +36,11 @@ def eval_policy(policy, env_name, seed, eval_episodes=10):
 
             avg_reward += reward
         eval_env.close()
+        eval_env = envController.getEnv(args.env)
+        # Set seeds
+        eval_env.seed(seed + 10)
+        torch.manual_seed(seed + 10)
+        np.random.seed(seed + 10)
     avg_reward /= eval_episodes
 
     print("---------------------------------------")
@@ -73,8 +81,8 @@ if __name__ == "__main__":
     if not os.path.exists("./results"):
         os.makedirs("./results")
 
-    if args.save_model and not os.path.exists("./models/runs"):
-        os.makedirs("./models/runs")
+    if not os.path.exists("./models"):
+        os.makedirs("./models")
 
     env = envController.getEnv(args.env)
 
@@ -108,8 +116,7 @@ if __name__ == "__main__":
     #     policy = OriginDDPG.OriginDDPG(**kwargs)
 
     if args.load_model != "":
-        policy_file = file_name if args.load_model == "default" else args.load_model
-        policy.load(f"./models/runs/{policy_file}")
+        policy.load(f"./models/{file_name}")
 
     # Evaluate untrained policy
     evaluations = [eval_policy(policy, args.env, args.seed)]
@@ -154,6 +161,11 @@ if __name__ == "__main__":
                 f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             # Reset environment
             env.close()
+            env = envController.getEnv(args.env)
+            # Set seeds
+            env.seed(args.seed)
+            torch.manual_seed(args.seed)
+            np.random.seed(args.seed)
             state, done = env.reset(), False
             episode_reward = 0
             episode_timesteps = 0

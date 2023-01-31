@@ -17,8 +17,8 @@ def random_eval():
     for i in range(MAX_EP_STEPS):
         eval_env.render()
         time.sleep(0.1)
-        action = env.sample_action()
-        s, r, done = env.step(action)
+        action = eval_env.sample_action()
+        s, r, done = eval_env.step(action)
         print(f"currently, the {i + 1} step:\n"
               f"           Action: speed {action[0]['delta_v_x'], action[0]['delta_v_y'], action[0]['delta_v_z']}\n"
               f"           State: pos {s[0]['x'], s[0]['y'], s[0]['z']};   speed {s[0]['v_x'], s[0]['v_y'], s[0]['v_z']}\n"
@@ -38,15 +38,16 @@ def model_eval(policy):
         time.sleep(0.1)
         state = np.array([list(state[i].values()) for i in range(len(state))])
         action = policy.select_action(state)
-        s, r, done = env.step(action)
+        action = [dict(zip(['delta_v_x', 'delta_v_y', 'delta_v_z'], action))]
+        s, r, done = eval_env.step(action)
         print(f"currently, the {i + 1} step:\n"
               f"           Action: speed {action[0]['delta_v_x'], action[0]['delta_v_y'], action[0]['delta_v_z']}\n"
               f"           State: pos {s[0]['x'], s[0]['y'], s[0]['z']};   speed {s[0]['v_x'], s[0]['v_y'], s[0]['v_z']}\n"
               f"           Reward:{r}\n")
         state = s
         if done:
-            eval_env.show_path()
             break
+    eval_env.show_path()
     eval_env.close()
 
 
@@ -70,9 +71,9 @@ if __name__ == "__main__":
     policy = TD3(state_dim=state_dim, action_dim=action_dim, max_action=max_action,
                  discount=0.99, tau=0.005, policy_noise=0.2*max_action,
                  noise_clip=0.5*max_action, policy_freq=2)
-    policy.load("./model/")
+    policy.load(f"./models/{file_name}")
     # 测试随机选择（非正态分布）
-    random_eval()
+    # random_eval()
     # 测试模型
     model_eval(policy)
 

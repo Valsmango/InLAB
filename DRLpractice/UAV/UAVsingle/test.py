@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FuncFormatter
 import torch
+from rl_plotter.logger import Logger
 
 
 def create_map():
@@ -69,11 +70,17 @@ def save_to_file(data, file_name):
     # https://www.cnblogs.com/tester-hqser/p/16202786.html
     pass
 
+def test_rl_plotter():
+    # logger = Logger(exp_name="your_exp_name", env_name, seed, locals())
+    # ......
+    # logger.update(score=评估得分(list), total_steps=当前训练步数)
+    pass
 
 if __name__ == "__main__":
-    static_obs_info, dynamic_obs_info = create_map() # 测试
+    # static_obs_info, dynamic_obs_info = create_map() # 测试
     # save_to_file(static_obs_info, "static_obs")
     # save_to_file(dynamic_obs_info, "dynamic_obs")
     # print(np.array(list(static_obs_info[0].values())))
     # print(np.array([list(static_obs_info[i].values()) for i in range(len(static_obs_info))]))
-    print(torch.tensor([5, 3]) - torch.tensor([1, 2]))
+    # print(torch.tensor([5, 3]) - torch.tensor([1, 2]))
+    pass

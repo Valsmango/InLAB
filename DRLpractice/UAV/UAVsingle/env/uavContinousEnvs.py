@@ -33,28 +33,28 @@ class SingleContinuousEnv(object):
                                                        'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
                                                        'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
                                           init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
-        # tmp = np.random.rand(1)
+        # tmp = np.random.rand()
         # if tmp < 0.3:
         #     self.model = SingleContinuousEnv0(self._max_episode_steps,
-        #                                       init_start=[{'x': 0, 'y': 0, 'z': 0,
-        #                                                    'v_x': 100, 'v_y': 100, 'v_z': 6,
-        #                                                    'tar_x': 5000, 'tar_y': 5000, 'tar_z': 300,
+        #                                       init_start=[{'x': 0, 'y': 0, 'z': 150,
+        #                                                    'v_x': 100, 'v_y': 100, 'v_z': 0,
+        #                                                    'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
         #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-        #                                       init_target=[{'x': 5000, 'y': 5000, 'z': 300}])
+        #                                       init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
         # elif tmp < 0.6:
         #     self.model = SingleContinuousEnv0(self._max_episode_steps,
-        #                                       init_start=[{'x': 0, 'y': 0, 'z': 0,
-        #                                                    'v_x': 100, 'v_y': 100, 'v_z': 6,
-        #                                                    'tar_x': 5000, 'tar_y': 5000, 'tar_z': 300,
+        #                                       init_start=[{'x': 250, 'y': 0, 'z': 150,
+        #                                                    'v_x': 60, 'v_y': 80, 'v_z': 0,
+        #                                                    'tar_x': 3500, 'tar_y': 4200, 'tar_z': 170,
         #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-        #                                       init_target=[{'x': 5000, 'y': 5000, 'z': 300}])
+        #                                       init_target=[{'x': 3500, 'y': 4200, 'z': 170}])
         # else:
         #     self.model = SingleContinuousEnv0(self._max_episode_steps,
-        #                                       init_start=[{'x': 0, 'y': 5000, 'z': 0,
-        #                                                    'v_x': 100, 'v_y': 100, 'v_z': 6,
-        #                                                    'tar_x': 5000, 'tar_y': 5000, 'tar_z': 300,
+        #                                       init_start=[{'x': 4800, 'y': 4000, 'z': 230,
+        #                                                    'v_x': -80, 'v_y': -65, 'v_z': -1,
+        #                                                    'tar_x': 720, 'tar_y': 520, 'tar_z': 180,
         #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-        #                                       init_target=[{'x': 5000, 'y': 5000, 'z': 300}])
+        #                                       init_target=[{'x': 720, 'y': 520, 'z': 180}])
 
     def reset(self):
         return self.model.reset()
