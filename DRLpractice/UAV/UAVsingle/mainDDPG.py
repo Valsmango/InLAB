@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from DRLpractice.UAV.UAVsingle.env import envController
-from DRLpractice.UAV.UAVsingle.algo import TD3
+from DRLpractice.UAV.UAVsingle.algo import DDPG
 
 import time
 
@@ -17,18 +17,18 @@ import time
 
 def eval_policy(policy, env_name, seed, eval_episodes=10):
     eval_env = envController.getEnv(env_name)
-    eval_env.seed(seed + 10)
+    eval_env.seed(seed + 100)
 
     avg_reward = 0.
     for _ in range(eval_episodes):
         state, done = eval_env.reset(), False
         while not done:
-            # eval_env.render()
-            # time.sleep(0.01)
+            eval_env.render()
+            time.sleep(0.01)
             state = np.array([list(state[i].values()) for i in range(len(state))])
             action = policy.select_action(state)
-            # print(action)
             action = [dict(zip(['delta_v_x', 'delta_v_y', 'delta_v_z'], action))]
+            print(action)
             state, reward, done = eval_env.step(action)
 
             avg_reward += reward
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     starttime = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", default="TD3")  # Policy name (TD3, DDPG or OurDDPG)
+    parser.add_argument("--policy", default="DDPG")  # Policy name (TD3, DDPG or OurDDPG)
     # parser.add_argument("--env", default="HalfCheetah-v2")  # OpenAI gym environment name
     # mujoco环境介绍： https://www.jianshu.com/p/e7235f8af25e
     parser.add_argument("--env", default="UAV_single_continuous")  # OpenAI gym environment name
@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     state_dim = 12
     action_dim = 3
-    max_action = np.array([5.0, 5.0, 0.5])
+    max_action = np.array([5.0, 5.0, 1.0])
 
     kwargs = {
         "state_dim": state_dim,
@@ -96,16 +96,8 @@ if __name__ == "__main__":
     }
 
     # Initialize policy
-    if args.policy == "TD3":
-        # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * max_action
-        kwargs["noise_clip"] = args.noise_clip * max_action
-        kwargs["policy_freq"] = args.policy_freq
-        policy = TD3.TD3(**kwargs)
-    # elif args.policy == "OurDDPG":
-    #     policy = OurDDPG.OurDDPG(**kwargs)
-    # elif args.policy == "OriginDDPG":
-    #     policy = OriginDDPG.OriginDDPG(**kwargs)
+    if args.policy == "DDPG":
+        policy = DDPG(**kwargs)
 
     if args.load_model != "":
         policy_file = file_name if args.load_model == "default" else args.load_model
@@ -163,12 +155,9 @@ if __name__ == "__main__":
         if t >= args.start_timesteps and (t + 1) % args.eval_freq == 0:
             evaluations.append(eval_policy(policy, args.env, args.seed))
             np.save(f"./results/{file_name}", evaluations)
-
-
-    policy.save(f"./models/{file_name}")
+            if args.save_model: policy.save(f"./models/{file_name}")
 
     endtime = time.time()
     dtime = endtime - starttime
     print("程序运行时间：%.8s s" % dtime)
     print(evaluations)
-

@@ -21,6 +21,19 @@ class Actor(nn.Module):
         self.max_action = torch.Tensor(max_action).to(device)
 
     def forward(self, state):
+        # Normalization
+        # state : [{'x': 0, 'y': 0, 'z': 0,
+        #           'v_x': 100, 'v_y': 100, 'v_z': 6,
+        #           'tar_x': 5000, 'tar_y': 5000, 'tar_z': 300,
+        #           'obs_x': 0, 'obs_y': 0, 'obs_z': 0}]
+        state = (state - torch.Tensor([0.0, 0.0, 150.0,
+                                       100.0, 100.0, 0.0,
+                                       5000.0, 5000.0, 150.0,
+                                       0.0, 0.0, 0.0]).to(device)) / \
+                torch.Tensor([5000.0, 5000.0, 300.0,
+                              350.0, 350.0, 25,
+                              5000.0, 5000.0, 300.0,
+                              5000.0, 5000.0, 300.0]).to(device)
         a = F.relu(self.l1(state))
         a = F.relu(self.l2(a))
         return self.max_action * torch.tanh(self.l3(a))
@@ -41,6 +54,16 @@ class Critic(nn.Module):
         self.l6 = nn.Linear(256, 1)
 
     def forward(self, state, action):
+        # Normalization
+        state = (state - torch.Tensor([0.0, 0.0, 150.0,
+                                       100.0, 100.0, 0.0,
+                                       5000.0, 5000.0, 150.0,
+                                       0.0, 0.0, 0.0]).to(device)) / \
+                torch.Tensor([5000.0, 5000.0, 300.0,
+                              350.0, 350.0, 25,
+                              5000.0, 5000.0, 300.0,
+                              5000.0, 5000.0, 300.0]).to(device)
+        action = action / torch.Tensor([5.0, 5.0, 0.5]).to(device)
         sa = torch.cat([state, action], 1)
 
         q1 = F.relu(self.l1(sa))
@@ -53,6 +76,20 @@ class Critic(nn.Module):
         return q1, q2
 
     def Q1(self, state, action):
+        # Normalization
+        # state = (state - torch.Tensor([0.0, 0.0, 0.0,
+        #                                -150.0, -150.0, -50.0,
+        #                                0.0, 0.0, 0.0,
+        #                                0.0, 0.0, 0.0]).to(device)) / \
+        state = (state - torch.Tensor([0.0, 0.0, 150.0,
+                                       100.0, 100.0, 0.0,
+                                       5000.0, 5000.0, 150.0,
+                                       0.0, 0.0, 0.0]).to(device)) / \
+                torch.Tensor([5000.0, 5000.0, 300.0,
+                              350.0, 350.0, 25,
+                              5000.0, 5000.0, 300.0,
+                              5000.0, 5000.0, 300.0]).to(device)
+        action = action / torch.Tensor([5.0, 5.0, 0.5]).to(device)
         sa = torch.cat([state, action], 1)
 
         q1 = F.relu(self.l1(sa))
@@ -114,17 +151,18 @@ class TD3(object):
         with torch.no_grad():
             # Select action according to policy and add clipped noise
             noise = (
-                    torch.randn_like(action) * self.policy_noise
-            ).clamp(-self.noise_clip, self.noise_clip)
+                    torch.randn_like(action) * torch.FloatTensor(self.policy_noise).to(device)
+            ).clamp(torch.FloatTensor(-self.noise_clip).to(device), torch.FloatTensor(self.noise_clip).to(device))
 
             next_action = (
                     self.actor_target(next_state) + noise
-            ).clamp(-self.max_action, self.max_action)
+            ).clamp(torch.FloatTensor(-self.max_action).to(device), torch.FloatTensor(self.max_action).to(device))
 
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
             target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + not_done * self.discount * target_Q
+            target_Q = reward + not_done * self.discount * target_Q.squeeze()
+            target_Q = target_Q.unsqueeze(1)
 
         # Get current Q estimates
         current_Q1, current_Q2 = self.critic(state, action)

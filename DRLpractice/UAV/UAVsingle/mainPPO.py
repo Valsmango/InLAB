@@ -13,7 +13,7 @@ from torch.distributions.categorical import Categorical
 # from torch.utils.tensorboard import SummaryWriter
 from DRLpractice.UAV.UAVsingle.env import envController
 
-from .model import PPO
+from .algo import PPO
 
 if __name__ == "__main__":
     start_time = time.time()

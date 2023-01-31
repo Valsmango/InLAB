@@ -1,8 +1,7 @@
 import torch
-from DDPG import *
-from env import *
-from utils import *
-from env import *
+from DRLpractice.DDPGdemo.DDPG import *
+from DRLpractice.DDPGdemo.env import *
+from DRLpractice.DDPGdemo.utils import *
 import matplotlib.pyplot as plt
 import time
 
