@@ -2,6 +2,7 @@
 import gym
 import argparse
 import os
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -16,15 +17,14 @@ from rl_plotter.logger import Logger
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
 
-def eval_policy(policy, env_name, seed, eval_episodes=10):
+def eval_policy(policy, env_name, seed=10, eval_episodes=1):
     eval_env = envController.getEnv(env_name)
-    eval_env.seed(seed + 10)
-    torch.manual_seed(seed + 10)
-    np.random.seed(seed + 10)
+    # eval_env.seed(seed + 10)
 
     avg_reward = 0.
     for _ in range(eval_episodes):
         state, done = eval_env.reset(), False
+        epi_reward = 0.
         while not done:
             # eval_env.render()
             # time.sleep(0.01)
@@ -35,20 +35,18 @@ def eval_policy(policy, env_name, seed, eval_episodes=10):
             state, reward, done = eval_env.step(action)
 
             avg_reward += reward
+            epi_reward += reward
         eval_env.close()
-        eval_env = envController.getEnv(args.env)
-        # Set seeds
-        eval_env.seed(seed + 10)
-        torch.manual_seed(seed + 10)
-        np.random.seed(seed + 10)
+        # print(epi_reward)
     avg_reward /= eval_episodes
 
+    print("")
     print("---------------------------------------")
     print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
     print("---------------------------------------")
     return avg_reward
 
-
+# 程序运行时间：8632.745 s
 if __name__ == "__main__":
 
     starttime = time.time()
@@ -58,7 +56,7 @@ if __name__ == "__main__":
     # parser.add_argument("--env", default="HalfCheetah-v2")  # OpenAI gym environment name
     # mujoco环境介绍： https://www.jianshu.com/p/e7235f8af25e
     parser.add_argument("--env", default="UAV_single_continuous")  # OpenAI gym environment name
-    parser.add_argument("--seed", default=0, type=int)  # Sets Gym, PyTorch and Numpy seeds
+    parser.add_argument("--seed", default=10, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=int)  # Time steps initial random policy is used
     parser.add_argument("--eval_freq", default=5e3, type=int)  # How often (time steps) we evaluate
     parser.add_argument("--max_timesteps", default=1e6, type=int)  # Max time steps to run environment
@@ -89,11 +87,14 @@ if __name__ == "__main__":
     # Set seeds
     env.seed(args.seed)
     torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
     np.random.seed(args.seed)
 
     state_dim = 12
     action_dim = 3
-    max_action = np.array([5.0, 5.0, 0.5])
+    # max_action = np.array([5.0, 5.0, 0.5])
+    # max_action = np.array([10.0, 10.0, 1.0])
+    max_action = np.array([1.0, 1.0, 1.0])
 
     kwargs = {
         "state_dim": state_dim,
@@ -122,10 +123,12 @@ if __name__ == "__main__":
     evaluations = [eval_policy(policy, args.env, args.seed)]
 
     state, done = env.reset(), False
+    # env.render()
     episode_reward = 0
     episode_timesteps = 0
     episode_num = 0
 
+    # for t in tqdm(range(int(args.max_timesteps))):
     for t in range(int(args.max_timesteps)):
 
         episode_timesteps += 1
@@ -158,14 +161,9 @@ if __name__ == "__main__":
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             print(
-                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+                f"Env Id: {env.get_env_id()}  Total T: {t + 1}  Episode Num: {episode_num + 1}  Episode T: {episode_timesteps}  Reward: {episode_reward:.3f}")
             # Reset environment
             env.close()
-            env = envController.getEnv(args.env)
-            # Set seeds
-            env.seed(args.seed)
-            torch.manual_seed(args.seed)
-            np.random.seed(args.seed)
             state, done = env.reset(), False
             episode_reward = 0
             episode_timesteps = 0

@@ -12,7 +12,7 @@ MAX_EP_STEPS = 100
 # 测试随机（均匀分布！后续可以修改为正态分布）情况下的reward
 def random_eval():
     eval_env = getEnv("UAV_single_continuous")
-    eval_env.seed(10)
+    eval_env.seed(20)
     state, done = eval_env.reset(), False
     for i in range(MAX_EP_STEPS):
         eval_env.render()
@@ -31,7 +31,7 @@ def random_eval():
 # 玩1局
 def model_eval(policy):
     eval_env = getEnv("UAV_single_continuous")
-    eval_env.seed(10)
+    eval_env.seed(20)
     state, done = eval_env.reset(), False
     for i in range(MAX_EP_STEPS):
         eval_env.render()
@@ -55,18 +55,18 @@ def model_eval(policy):
 if __name__ == "__main__":
     # 设定环境
     env = getEnv("UAV_single_continuous")
-    env.seed(10)
-    torch.manual_seed(10)
-    np.random.seed(10)
+    env.seed(20)
+    torch.manual_seed(20)
+    np.random.seed(20)
 
     # 配置model的一些信息
     state_dim = 12
     action_dim = 3
-    max_action = np.array([5.0, 5.0, 0.5])
+    max_action = np.array([1.0, 1.0, 1.0])
     # 载入训练好的模型
     policy_name = "TD3"
     env_name = "UAV_single_continuous"
-    seed_num = 0
+    seed_num = 10
     file_name = f"{policy_name}_{env_name}_{seed_num}"
     policy = TD3(state_dim=state_dim, action_dim=action_dim, max_action=max_action,
                  discount=0.99, tau=0.005, policy_noise=0.2*max_action,

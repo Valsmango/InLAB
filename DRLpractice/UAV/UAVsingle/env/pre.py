@@ -17,11 +17,11 @@ action设定：【dvx， dvy， dvz】
 '''
 
 
-class SingleContinuousEnv(object):
+class SingleContinuousEnv_pre(object):
     def __init__(self):
         self.env_kinds = 4
         self.env_id = 0
-        self._max_episode_steps = 200
+        self._max_episode_steps = 100
         self.model = None
         self.randomly_choose_env()
 
@@ -33,28 +33,7 @@ class SingleContinuousEnv(object):
                                                        'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
                                                        'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
                                           init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
-        # tmp = np.random.rand()
-        # if tmp < 0.3:
-        #     self.model = SingleContinuousEnv0(self._max_episode_steps,
-        #                                       init_start=[{'x': 0, 'y': 0, 'z': 150,
-        #                                                    'v_x': 100, 'v_y': 100, 'v_z': 0,
-        #                                                    'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
-        #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-        #                                       init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
-        # elif tmp < 0.6:
-        #     self.model = SingleContinuousEnv0(self._max_episode_steps,
-        #                                       init_start=[{'x': 250, 'y': 0, 'z': 150,
-        #                                                    'v_x': 60, 'v_y': 80, 'v_z': 0,
-        #                                                    'tar_x': 3500, 'tar_y': 4200, 'tar_z': 170,
-        #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-        #                                       init_target=[{'x': 3500, 'y': 4200, 'z': 170}])
-        # else:
-        #     self.model = SingleContinuousEnv0(self._max_episode_steps,
-        #                                       init_start=[{'x': 4800, 'y': 4000, 'z': 230,
-        #                                                    'v_x': -80, 'v_y': -65, 'v_z': -1,
-        #                                                    'tar_x': 720, 'tar_y': 520, 'tar_z': 180,
-        #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-        #                                       init_target=[{'x': 720, 'y': 520, 'z': 180}])
+        self.env_id = 0
 
     def reset(self):
         return self.model.reset()
@@ -86,12 +65,11 @@ class SingleContinuousEnv(object):
         return self.env_id
 
 
-class SingleContinuousEnv0(object):
+class SingleContinuousEnv0_pre(object):
     def __init__(self, max_episode_steps, init_start, init_target):
         self.uav_state = []
         self.static_obstacle_num = 20
         self.dynamic_obstacle_num = 2
-        self.max_action = np.array([5.0, 5.0, 0.5])
         # ndarray - tuple
         self.static_obs_state = []
         self.dynamic_obs_state = []
@@ -126,21 +104,7 @@ class SingleContinuousEnv0(object):
         self.dynamic_obs_state = copy.deepcopy(self.dynamic_obs_init_state)
         self.path = []
         self.save_path([self.uav_state[0]['x'], self.uav_state[0]['y'], self.uav_state[0]['z']])
-        # 【x，y，z，v_x，v_y，v_z，tar_x，tar_y，tar_z，obs_x，obs_y，obs_z】
-        return_state = copy.deepcopy(self.uav_state)
-        return_state[0]['x'] = return_state[0]['x'] / 5000.0
-        return_state[0]['y'] = return_state[0]['y'] / 5000.0
-        return_state[0]['z'] = return_state[0]['z'] / 300.0
-        return_state[0]['v_x'] = return_state[0]['v_x'] / 200.0
-        return_state[0]['v_y'] = return_state[0]['v_y'] / 200.0
-        return_state[0]['v_z'] = return_state[0]['v_z'] / 10.0
-        return_state[0]['tar_x'] = return_state[0]['tar_x'] / 5000.0
-        return_state[0]['tar_y'] = return_state[0]['tar_y'] / 5000.0
-        return_state[0]['tar_z'] = return_state[0]['tar_z'] / 300.0
-        return_state[0]['obs_x'] = return_state[0]['obs_x'] / 5000.0
-        return_state[0]['obs_y'] = return_state[0]['obs_y'] / 5000.0
-        return_state[0]['obs_z'] = return_state[0]['obs_z'] / 300.0
-        return return_state
+        return self.uav_state
 
     def render(self):
         if self.viewer is None:
@@ -152,11 +116,7 @@ class SingleContinuousEnv0(object):
             self.viewer.close()
             self.viewer = None
 
-    def step(self, input_action):
-        action = copy.deepcopy(input_action)
-        action[0]['delta_v_x'] = action[0]['delta_v_x'] * self.max_action[0]
-        action[0]['delta_v_y'] = action[0]['delta_v_y'] * self.max_action[1]
-        action[0]['delta_v_z'] = action[0]['delta_v_z'] * self.max_action[2]
+    def step(self, action):
         done = False
         reward = 0.0
 
@@ -243,7 +203,7 @@ class SingleContinuousEnv0(object):
         reward += 0.05*sum(urep_static) + 0.05*sum(urep_dynamic) + 0.1*uatt
 
 
-        reward += -10
+        # reward += -0.1
         # reward += (pre_tar_dis - tar_dis)/10
 
         if tar_dis_vert < self.min_sep_vert and tar_dis_hori < self.min_sep_hori:
@@ -266,26 +226,17 @@ class SingleContinuousEnv0(object):
         elif len(self.path) > self._max_episode_steps:
             done = True
 
-        return_state = copy.deepcopy(self.uav_state)
-        return_state[0]['x'] = return_state[0]['x'] / 5000.0
-        return_state[0]['y'] = return_state[0]['y'] / 5000.0
-        return_state[0]['z'] = return_state[0]['z'] / 300.0
-        return_state[0]['v_x'] = return_state[0]['v_x'] / 200.0
-        return_state[0]['v_y'] = return_state[0]['v_y'] / 200.0
-        return_state[0]['v_z'] = return_state[0]['v_z'] / 10.0
-        return_state[0]['tar_x'] = return_state[0]['tar_x'] / 5000.0
-        return_state[0]['tar_y'] = return_state[0]['tar_y'] / 5000.0
-        return_state[0]['tar_z'] = return_state[0]['tar_z'] / 300.0
-        return_state[0]['obs_x'] = return_state[0]['obs_x'] / 5000.0
-        return_state[0]['obs_y'] = return_state[0]['obs_y'] / 5000.0
-        return_state[0]['obs_z'] = return_state[0]['obs_z'] / 300.0
-        return return_state, reward, done
+        return self.uav_state, reward, done
 
     def sample_action(self):
+        # # Normal
+        # random_delta_v_x = np.random.normal() * 2.0
+        # random_delta_v_y = np.random.normal() * 2.0
+        # random_delta_v_z = np.random.normal() * 0.3
         # # Mean
-        random_delta_v_x = np.random.rand()
-        random_delta_v_y = np.random.rand()
-        random_delta_v_z = np.random.rand()
+        random_delta_v_x = np.random.rand() * 10.0
+        random_delta_v_y = np.random.rand() * 10.0
+        random_delta_v_z = np.random.rand() * 1.0
         return [{'delta_v_x': random_delta_v_x, 'delta_v_y': random_delta_v_y, 'delta_v_z': random_delta_v_z}]
 
     def save_path(self, next_state):
@@ -327,6 +278,11 @@ class SingleContinuousEnv0(object):
                    [self.path[path_len - 1][2] / 1000], color='green', alpha=0.7, label='UAV')
         ax.plot3D(x, y, z, color='green')
         for k in range(len(self.uav_init_state)):
+            # ax.scatter([self.uav_init_state[k]['x'] / 1000], [self.uav_init_state[k]['y'] / 1000],
+            #            [self.uav_init_state[k]['z'] / 1000],
+            #            color='green', alpha=0.3, marker='x', s=60, label='start')
+            # ax.scatter([self.target[k]['x'] / 1000], [self.target[k]['y'] / 1000],
+            #            [self.target[k]['z'] / 1000], color='green', alpha=0.7, marker='x', s=60, label='destination')
             ax.plot3D([self.uav_init_state[k]['x'] / 1000, self.target[k]['x'] / 1000],
                       [self.uav_init_state[k]['y'] / 1000, self.target[k]['y'] / 1000],
                       [self.uav_init_state[k]['z'] / 1000, self.target[k]['z'] / 1000],
@@ -471,18 +427,18 @@ if __name__ == "__main__":
     env = SingleContinuousEnv()
     env.reset()
 
-    for i in range(50):
-        env.render()
-        time.sleep(0.1)
-        action = env.sample_action()
-        s, r, done = env.step(action)
-        print(f"currently, the {i + 1} step:\n"
-              f"           Action: speed {action[0]['delta_v_x']*5.0, action[0]['delta_v_y']*5.0, action[0]['delta_v_z']*0.5}\n"
-              f"           State: pos {s[0]['x']*5000.0, s[0]['y']*5000.0, s[0]['z']*300.0};   speed {s[0]['v_x']*200, s[0]['v_y']*200.0, s[0]['v_z']*10}\n"
-              f"           Reward:{r}\n")
-        if done:
-            env.show_path()
-            break
+    # for i in range(50):
+    #     env.render()
+    #     time.sleep(0.1)
+    #     action = env.sample_action()
+    #     s, r, done = env.step(action)
+    #     print(f"currently, the {i + 1} step:\n"
+    #           f"           Action: speed {action[0]['delta_v_x'], action[0]['delta_v_y'], action[0]['delta_v_z']}\n"
+    #           f"           State: pos {s[0]['x'], s[0]['y'], s[0]['z']};   speed {s[0]['v_x'], s[0]['v_y'], s[0]['v_z']}\n"
+    #           f"           Reward:{r}\n")
+    #     if done:
+    #         env.show_path()
+    #         break
 
     # ax = plt.axes(projection='3d')
     # x = np.zeros([500, 500])
@@ -496,10 +452,10 @@ if __name__ == "__main__":
     # ax.scatter(x, y, r, s=0.01)
     # plt.show()
 
-    # x = np.arange(-500, 5500, 10)
-    # y = np.arange(-500, 5500, 10)
-    # X, Y = np.meshgrid(x, y)
-    # Z = env.plot_reward(X, Y)
-    # ct = plt.contour(X, Y, Z, 100)
-    # plt.clabel(ct, inline=True)
-    # plt.show()
+    x = np.arange(-500, 5500, 10)
+    y = np.arange(-500, 5500, 10)
+    X, Y = np.meshgrid(x, y)
+    Z = env.plot_reward(X, Y)
+    ct = plt.contour(X, Y, Z, 100)
+    plt.clabel(ct, inline=True)
+    plt.show()

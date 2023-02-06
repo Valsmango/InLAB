@@ -33,7 +33,7 @@ def training_rewards_plot(rewards, max_training_steps):
 if __name__ == "__main__":
     policy_name = "TD3"
     env_name = "UAV_single_continuous"
-    seed_num = 0
+    seed_num = 10
     file_name = f"{policy_name}_{env_name}_{seed_num}"
     rewards = np.load(f"./results/{file_name}.npy")
     eval_result_plot(rewards=rewards, eval_frequent=5000)

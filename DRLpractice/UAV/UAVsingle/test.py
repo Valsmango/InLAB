@@ -8,13 +8,13 @@ from rl_plotter.logger import Logger
 
 
 def create_map():
-    static_obstacle_num = 50
-    dynamic_obstacle_num = 5
+    static_obstacle_num = 90
+    dynamic_obstacle_num = 10
     static_obs_info = []
     dynamic_obs_info = []
     for i in range(static_obstacle_num):
-        x_i = np.random.rand(1) * 5000
-        y_i = np.random.rand(1) * 5000
+        x_i = np.random.rand(1) * 4000 + 500
+        y_i = np.random.rand(1) * 4000 + 500
         z_i = np.random.rand(1) * 300
         v_x_i = 0.
         v_y_i = 0.
@@ -22,8 +22,8 @@ def create_map():
         static_obs_info.append({'x': float(x_i), 'y': float(y_i), 'z': float(z_i),
                                 'v_x': float(v_x_i), 'v_y': float(v_y_i), 'v_z': float(v_z_i)})
     for i in range(dynamic_obstacle_num):
-        x_i = np.random.rand(1) * 5000
-        y_i = np.random.rand(1) * 5000
+        x_i = np.random.rand(1) * 4000 + 500
+        y_i = np.random.rand(1) * 4000 + 500
         z_i = np.random.rand(1) * 300
         v_x_i = np.random.rand(1) * 50
         v_y_i = np.random.rand(1) * 50
@@ -77,10 +77,10 @@ def test_rl_plotter():
     pass
 
 if __name__ == "__main__":
-    # static_obs_info, dynamic_obs_info = create_map() # 测试
+    static_obs_info, dynamic_obs_info = create_map() # 测试
     # save_to_file(static_obs_info, "static_obs")
     # save_to_file(dynamic_obs_info, "dynamic_obs")
     # print(np.array(list(static_obs_info[0].values())))
     # print(np.array([list(static_obs_info[i].values()) for i in range(len(static_obs_info))]))
     # print(torch.tensor([5, 3]) - torch.tensor([1, 2]))
-    pass
+    # pass

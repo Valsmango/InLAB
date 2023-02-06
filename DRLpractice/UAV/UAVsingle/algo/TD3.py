@@ -8,7 +8,12 @@ import torch.nn.functional as F
 from DRLpractice.UAV.UAVsingle.replaybuffer import TD3ReplayBuffer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("device:{}".format(device))
+
+
+def orthogonal_init(layer, gain=1.0):
+    nn.init.orthogonal_(layer.weight, gain=gain)
+    nn.init.constant_(layer.bias, 0)
+
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action):
@@ -17,23 +22,13 @@ class Actor(nn.Module):
         self.l1 = nn.Linear(state_dim, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, action_dim)
+        orthogonal_init(self.l1)
+        orthogonal_init(self.l2)
+        orthogonal_init(self.l3)
 
         self.max_action = torch.Tensor(max_action).to(device)
 
     def forward(self, state):
-        # Normalization
-        # state : [{'x': 0, 'y': 0, 'z': 0,
-        #           'v_x': 100, 'v_y': 100, 'v_z': 6,
-        #           'tar_x': 5000, 'tar_y': 5000, 'tar_z': 300,
-        #           'obs_x': 0, 'obs_y': 0, 'obs_z': 0}]
-        state = (state - torch.Tensor([0.0, 0.0, 150.0,
-                                       100.0, 100.0, 0.0,
-                                       5000.0, 5000.0, 150.0,
-                                       0.0, 0.0, 0.0]).to(device)) / \
-                torch.Tensor([5000.0, 5000.0, 300.0,
-                              350.0, 350.0, 25,
-                              5000.0, 5000.0, 300.0,
-                              5000.0, 5000.0, 300.0]).to(device)
         a = F.relu(self.l1(state))
         a = F.relu(self.l2(a))
         return self.max_action * torch.tanh(self.l3(a))
@@ -47,23 +42,19 @@ class Critic(nn.Module):
         self.l1 = nn.Linear(state_dim + action_dim, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, 1)
+        orthogonal_init(self.l1)
+        orthogonal_init(self.l2)
+        orthogonal_init(self.l3)
 
         # Q2 architecture
         self.l4 = nn.Linear(state_dim + action_dim, 256)
         self.l5 = nn.Linear(256, 256)
         self.l6 = nn.Linear(256, 1)
+        orthogonal_init(self.l4)
+        orthogonal_init(self.l5)
+        orthogonal_init(self.l6)
 
     def forward(self, state, action):
-        # Normalization
-        state = (state - torch.Tensor([0.0, 0.0, 150.0,
-                                       100.0, 100.0, 0.0,
-                                       5000.0, 5000.0, 150.0,
-                                       0.0, 0.0, 0.0]).to(device)) / \
-                torch.Tensor([5000.0, 5000.0, 300.0,
-                              350.0, 350.0, 25,
-                              5000.0, 5000.0, 300.0,
-                              5000.0, 5000.0, 300.0]).to(device)
-        action = action / torch.Tensor([5.0, 5.0, 0.5]).to(device)
         sa = torch.cat([state, action], 1)
 
         q1 = F.relu(self.l1(sa))
@@ -76,20 +67,6 @@ class Critic(nn.Module):
         return q1, q2
 
     def Q1(self, state, action):
-        # Normalization
-        # state = (state - torch.Tensor([0.0, 0.0, 0.0,
-        #                                -150.0, -150.0, -50.0,
-        #                                0.0, 0.0, 0.0,
-        #                                0.0, 0.0, 0.0]).to(device)) / \
-        state = (state - torch.Tensor([0.0, 0.0, 150.0,
-                                       100.0, 100.0, 0.0,
-                                       5000.0, 5000.0, 150.0,
-                                       0.0, 0.0, 0.0]).to(device)) / \
-                torch.Tensor([5000.0, 5000.0, 300.0,
-                              350.0, 350.0, 25,
-                              5000.0, 5000.0, 300.0,
-                              5000.0, 5000.0, 300.0]).to(device)
-        action = action / torch.Tensor([5.0, 5.0, 0.5]).to(device)
         sa = torch.cat([state, action], 1)
 
         q1 = F.relu(self.l1(sa))

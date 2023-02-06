@@ -21,7 +21,7 @@ class SingleContinuousEnv(object):
     def __init__(self):
         self.env_kinds = 4
         self.env_id = 0
-        self._max_episode_steps = 200
+        self._max_episode_steps = 100
         self.model = None
         self.randomly_choose_env()
 
@@ -33,6 +33,7 @@ class SingleContinuousEnv(object):
                                                        'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
                                                        'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
                                           init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
+        self.env_id = 0
         # tmp = np.random.rand()
         # if tmp < 0.3:
         #     self.model = SingleContinuousEnv0(self._max_episode_steps,
@@ -41,6 +42,7 @@ class SingleContinuousEnv(object):
         #                                                    'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
         #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
         #                                       init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
+        #     self.env_id = 1
         # elif tmp < 0.6:
         #     self.model = SingleContinuousEnv0(self._max_episode_steps,
         #                                       init_start=[{'x': 250, 'y': 0, 'z': 150,
@@ -48,6 +50,7 @@ class SingleContinuousEnv(object):
         #                                                    'tar_x': 3500, 'tar_y': 4200, 'tar_z': 170,
         #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
         #                                       init_target=[{'x': 3500, 'y': 4200, 'z': 170}])
+        #     self.env_id = 2
         # else:
         #     self.model = SingleContinuousEnv0(self._max_episode_steps,
         #                                       init_start=[{'x': 4800, 'y': 4000, 'z': 230,
@@ -55,6 +58,7 @@ class SingleContinuousEnv(object):
         #                                                    'tar_x': 720, 'tar_y': 520, 'tar_z': 180,
         #                                                    'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
         #                                       init_target=[{'x': 720, 'y': 520, 'z': 180}])
+        #     self.env_id = 3
 
     def reset(self):
         return self.model.reset()
@@ -79,7 +83,7 @@ class SingleContinuousEnv(object):
     def close(self):
         self.model.close()
 
-    def plot_reward(self, x, y, z=0):
+    def plot_reward(self, x, y, z):
         return self.model.plot_reward(x, y, z)
 
     def get_env_id(self):
@@ -91,7 +95,6 @@ class SingleContinuousEnv0(object):
         self.uav_state = []
         self.static_obstacle_num = 20
         self.dynamic_obstacle_num = 2
-        self.max_action = np.array([5.0, 5.0, 0.5])
         # ndarray - tuple
         self.static_obs_state = []
         self.dynamic_obs_state = []
@@ -114,10 +117,10 @@ class SingleContinuousEnv0(object):
         self.dynamic_obs_init_state = [{'x': 3361.9312062379227, 'y': 1301.8970838259083, 'z': 258.096596783287, 'v_x': 46.431137634250405, 'v_y': 42.23479720836719, 'v_z': -0.33226113346565267}, {'x': 3201.3940965029815, 'y': 4044.4550255704903, 'z': 294.5524500656295, 'v_x': 8.600969627495658, 'v_y': 7.761353358646344, 'v_z': 2.2358511675594084}, {'x': 3542.3929425163515, 'y': 2390.304895993673, 'z': 111.37794779834601, 'v_x': 0.5793027378000304, 'v_y': 11.02524640567561, 'v_z': 0.6114454368066902}, {'x': 1272.3086931784344, 'y': 2755.656872221971, 'z': 7.547512397695222, 'v_x': 27.356323863467008, 'v_y': 43.6351433213272, 'v_z': 0.6287392923682038}, {'x': 3465.8752843790826, 'y': 1323.2357733711683, 'z': 79.80925656542647, 'v_x': 41.66880952568927, 'v_y': 45.189581307394825, 'v_z': -2.4197211925532525}, {'x': 827.3286060286069, 'y': 1798.2690843401056, 'z': 213.3632538617275, 'v_x': 13.675878937093488, 'v_y': 15.836100373261624, 'v_z': -2.969021810621121}, {'x': 673.8464351867694, 'y': 724.4988427269203, 'z': 101.27700729268115, 'v_x': 38.56658813882422, 'v_y': 22.53994938526807, 'v_z': -1.5958457123414682}, {'x': 708.512295691738, 'y': 3151.5448159608272, 'z': 68.95316209385169, 'v_x': 45.53113051526723, 'v_y': 16.08870528718836, 'v_z': 1.9083328282671}, {'x': 2877.870842835495, 'y': 3565.3894589977244, 'z': 254.79831950787943, 'v_x': 3.853128069904188, 'v_y': 31.363455570431093, 'v_z': -1.440230073682307}, {'x': 3548.6385688749156, 'y': 1034.649153582318, 'z': 257.9151207139955, 'v_x': 41.18218166240531, 'v_y': 20.867956009711502, 'v_z': 2.2449519414313617}]
         self.uav_state = copy.deepcopy(self.uav_init_state)
         self.dynamic_obs_state = copy.deepcopy(self.dynamic_obs_init_state)
-        self.att = 2 / ((self.target[0]['x']/1000 - self.uav_init_state[0]['x']/1000) ** 2 +
-                        (self.target[0]['y']/1000 - self.uav_init_state[0]['y']/1000) ** 2 +
-                        (self.target[0]['z']/1000 - self.uav_init_state[0]['z']/1000) ** 2)
-        self.rep = 2 / (1 / self.min_sep_hori - 1 / self.min_range) ** 2
+        # self.att = 2 / ((self.target[0]['x']/1000 - self.uav_init_state[0]['x']/1000) ** 2 +
+        #                 (self.target[0]['y']/1000 - self.uav_init_state[0]['y']/1000) ** 2 +
+        #                 (self.target[0]['z']/1000 - self.uav_init_state[0]['z']/1000) ** 2)
+        # self.rep = 2 / (1 / self.min_sep - 1 / self.min_range) ** 2
         # print(f"att parameter: {self.att}; rep parameter: {self.rep}")
         self.save_path([self.uav_init_state[0]['x'], self.uav_init_state[0]['y'], self.uav_init_state[0]['z']])
 
@@ -126,21 +129,7 @@ class SingleContinuousEnv0(object):
         self.dynamic_obs_state = copy.deepcopy(self.dynamic_obs_init_state)
         self.path = []
         self.save_path([self.uav_state[0]['x'], self.uav_state[0]['y'], self.uav_state[0]['z']])
-        # 【x，y，z，v_x，v_y，v_z，tar_x，tar_y，tar_z，obs_x，obs_y，obs_z】
-        return_state = copy.deepcopy(self.uav_state)
-        return_state[0]['x'] = return_state[0]['x'] / 5000.0
-        return_state[0]['y'] = return_state[0]['y'] / 5000.0
-        return_state[0]['z'] = return_state[0]['z'] / 300.0
-        return_state[0]['v_x'] = return_state[0]['v_x'] / 200.0
-        return_state[0]['v_y'] = return_state[0]['v_y'] / 200.0
-        return_state[0]['v_z'] = return_state[0]['v_z'] / 10.0
-        return_state[0]['tar_x'] = return_state[0]['tar_x'] / 5000.0
-        return_state[0]['tar_y'] = return_state[0]['tar_y'] / 5000.0
-        return_state[0]['tar_z'] = return_state[0]['tar_z'] / 300.0
-        return_state[0]['obs_x'] = return_state[0]['obs_x'] / 5000.0
-        return_state[0]['obs_y'] = return_state[0]['obs_y'] / 5000.0
-        return_state[0]['obs_z'] = return_state[0]['obs_z'] / 300.0
-        return return_state
+        return self.uav_state
 
     def render(self):
         if self.viewer is None:
@@ -152,41 +141,16 @@ class SingleContinuousEnv0(object):
             self.viewer.close()
             self.viewer = None
 
-    def step(self, input_action):
-        action = copy.deepcopy(input_action)
-        action[0]['delta_v_x'] = action[0]['delta_v_x'] * self.max_action[0]
-        action[0]['delta_v_y'] = action[0]['delta_v_y'] * self.max_action[1]
-        action[0]['delta_v_z'] = action[0]['delta_v_z'] * self.max_action[2]
-        done = False
-        reward = 0.0
-
+    def step(self, action):
         # pre_tar_dis =  np.sqrt((self.uav_state[0]['x'] - self.target[0]['x']) ** 2 +
         #                   (self.uav_state[0]['y'] - self.target[0]['y']) ** 2 +
         #                   (self.uav_state[0]['z'] - self.target[0]['z']) ** 2)
         # Calculate the uav's position
         self.uav_state[0]['v_x'] += action[0]['delta_v_x']
-        if self.uav_state[0]['v_x'] > 200:
-            self.uav_state[0]['v_x'] = 200
-            reward += -20
-        elif self.uav_state[0]['v_x'] < -200:
-            self.uav_state[0]['v_x'] = -200
-            reward += -20
         self.uav_state[0]['x'] += self.uav_state[0]['v_x'] * self.delta_t
         self.uav_state[0]['v_y'] += action[0]['delta_v_y']
-        if self.uav_state[0]['v_y'] > 200:
-            self.uav_state[0]['v_y'] = 200
-            reward += -20
-        elif self.uav_state[0]['v_y'] < -200:
-            self.uav_state[0]['v_y'] = -200
-            reward += -20
         self.uav_state[0]['y'] += self.uav_state[0]['v_y'] * self.delta_t
         self.uav_state[0]['v_z'] += action[0]['delta_v_z']
-        if self.uav_state[0]['v_z'] > 10:
-            self.uav_state[0]['v_z'] = 10
-            reward += -20
-        elif self.uav_state[0]['v_z'] < -10:
-            self.uav_state[0]['v_z'] = -10
-            reward += -20
         self.uav_state[0]['z'] += self.uav_state[0]['v_z'] * self.delta_t
         self.save_path([self.uav_state[0]['x'], self.uav_state[0]['y'], self.uav_state[0]['z']])
         # Calculate the dynamic obstacles' position
@@ -195,6 +159,8 @@ class SingleContinuousEnv0(object):
             obs['y'] += obs['v_y'] * self.delta_t
             obs['z'] += obs['v_z'] * self.delta_t
         # Calculate the reward
+        done = False
+        reward = 0.0
         static_obs_dis = [np.sqrt(
             (self.static_obs_state[i]['x'] - self.uav_state[0]['x']) ** 2 +
             (self.static_obs_state[i]['y'] - self.uav_state[0]['y']) ** 2 +
@@ -228,64 +194,54 @@ class SingleContinuousEnv0(object):
             self.uav_state[0]['obs_y'] = self.static_obs_state[nearest_obs_idx]['y']
             self.uav_state[0]['obs_z'] = self.static_obs_state[nearest_obs_idx]['z']
 
-        # urep_static = np.where(np.array(static_obs_dis) < self.min_range,
-        #                        np.exp((-np.array(static_obs_dis))/100), 0)
-        # urep_dynamic = np.where(np.array(dynamic_obs_dis) < self.min_range,
-        #                         np.exp((-np.array(dynamic_obs_dis))/100), 0)
-        # uatt = np.exp(-tar_dis/1000)
-        # reward += 20 * uatt - sum(urep_static) - sum(urep_dynamic)
-
         urep_static = np.where(np.array(static_obs_dis) < self.min_range,
-                               - 1 / 2 * self.rep * (1 / np.array(static_obs_dis) - 1 / self.min_range), 0)
+                               np.exp((-np.array(static_obs_dis))/100), 0)
         urep_dynamic = np.where(np.array(dynamic_obs_dis) < self.min_range,
-                                - 1 / 2 * self.rep * (1 / np.array(dynamic_obs_dis) - 1 / self.min_range), 0)
-        uatt = - self.att * tar_dis
-        reward += 0.05*sum(urep_static) + 0.05*sum(urep_dynamic) + 0.1*uatt
+                                np.exp((-np.array(dynamic_obs_dis))/100), 0)
+        uatt = np.exp(-tar_dis/1000)
+        reward += 20 * uatt - sum(urep_static) - sum(urep_dynamic)
 
+        # urep_static = np.where(np.array(static_obs_dis) < self.min_range,
+        #                        - 1 / 2 * self.rep * ((1 / np.array(static_obs_dis) - 1 / self.min_range) ** 2), 0)
+        # urep_dynamic = np.where(np.array(dynamic_obs_dis) < self.min_range,
+        #                        - 1 / 2 * self.rep * ((1 / np.array(dynamic_obs_dis) - 1 / self.min_range) ** 2), 0)
+        # uatt = - self.att * tar_dis
+        # reward += sum(urep_static) * 2 + sum(urep_dynamic) * 2 + 100 * uatt
 
-        reward += -10
+        # reward += -0.1
         # reward += (pre_tar_dis - tar_dis)/10
 
         if tar_dis_vert < self.min_sep_vert and tar_dis_hori < self.min_sep_hori:
-            reward += 2000
+            reward += 20.0
             # print(" --------reach the goal")
             done = True
-        elif np.any(np.array(np.abs(np.array(static_obs_dis_vert)) < self.min_sep_vert) &
+        if np.any(np.array(np.abs(np.array(static_obs_dis_vert)) < self.min_sep_vert) &
                   np.array(np.abs(np.array(static_obs_dis_hori)) < self.min_sep_hori)) or \
                 np.any(np.array(np.abs(np.array(dynamic_obs_dis_vert)) < self.min_sep_vert) &
                 np.array(np.abs(np.array(dynamic_obs_dis_hori)) < self.min_sep_hori)):
-            reward += -2000
+            reward += -20.0
             # print(" --------collision")
             done = True
-        elif self.uav_state[0]['x'] < 0.0 or self.uav_state[0]['x'] > 5000.0 or \
+        if self.uav_state[0]['x'] < 0.0 or self.uav_state[0]['x'] > 5000.0 or \
             self.uav_state[0]['y'] < 0.0 or self.uav_state[0]['y'] > 5000.0 or \
                 self.uav_state[0]['z'] < 0.0 or self.uav_state[0]['z'] > 300.0:
-            reward += -2000
+            reward += -10.0
             # print(" --------out of the boundary")
             done = True
-        elif len(self.path) > self._max_episode_steps:
+        if len(self.path) > self._max_episode_steps:
             done = True
 
-        return_state = copy.deepcopy(self.uav_state)
-        return_state[0]['x'] = return_state[0]['x'] / 5000.0
-        return_state[0]['y'] = return_state[0]['y'] / 5000.0
-        return_state[0]['z'] = return_state[0]['z'] / 300.0
-        return_state[0]['v_x'] = return_state[0]['v_x'] / 200.0
-        return_state[0]['v_y'] = return_state[0]['v_y'] / 200.0
-        return_state[0]['v_z'] = return_state[0]['v_z'] / 10.0
-        return_state[0]['tar_x'] = return_state[0]['tar_x'] / 5000.0
-        return_state[0]['tar_y'] = return_state[0]['tar_y'] / 5000.0
-        return_state[0]['tar_z'] = return_state[0]['tar_z'] / 300.0
-        return_state[0]['obs_x'] = return_state[0]['obs_x'] / 5000.0
-        return_state[0]['obs_y'] = return_state[0]['obs_y'] / 5000.0
-        return_state[0]['obs_z'] = return_state[0]['obs_z'] / 300.0
-        return return_state, reward, done
+        return self.uav_state, reward, done
 
     def sample_action(self):
+        # # Normal
+        # random_delta_v_x = np.random.normal() * 2.0
+        # random_delta_v_y = np.random.normal() * 2.0
+        # random_delta_v_z = np.random.normal() * 0.3
         # # Mean
-        random_delta_v_x = np.random.rand()
-        random_delta_v_y = np.random.rand()
-        random_delta_v_z = np.random.rand()
+        random_delta_v_x = np.random.rand() * 10.0
+        random_delta_v_y = np.random.rand() * 10.0
+        random_delta_v_z = np.random.rand() * 1.0
         return [{'delta_v_x': random_delta_v_x, 'delta_v_y': random_delta_v_y, 'delta_v_z': random_delta_v_z}]
 
     def save_path(self, next_state):
@@ -327,6 +283,11 @@ class SingleContinuousEnv0(object):
                    [self.path[path_len - 1][2] / 1000], color='green', alpha=0.7, label='UAV')
         ax.plot3D(x, y, z, color='green')
         for k in range(len(self.uav_init_state)):
+            # ax.scatter([self.uav_init_state[k]['x'] / 1000], [self.uav_init_state[k]['y'] / 1000],
+            #            [self.uav_init_state[k]['z'] / 1000],
+            #            color='green', alpha=0.3, marker='x', s=60, label='start')
+            # ax.scatter([self.target[k]['x'] / 1000], [self.target[k]['y'] / 1000],
+            #            [self.target[k]['z'] / 1000], color='green', alpha=0.7, marker='x', s=60, label='destination')
             ax.plot3D([self.uav_init_state[k]['x'] / 1000, self.target[k]['x'] / 1000],
                       [self.uav_init_state[k]['y'] / 1000, self.target[k]['y'] / 1000],
                       [self.uav_init_state[k]['z'] / 1000, self.target[k]['z'] / 1000],
@@ -386,33 +347,31 @@ class SingleContinuousEnv0(object):
         plt.legend()
         plt.show()
 
-    def plot_reward(self, x, y, z = 0):
+    def plot_reward(self, x, y, z):
         reward = 0.0
-        static_obs_dis = [np.sqrt(
-            (self.static_obs_state[i]['x'] - x) ** 2 +
-            (self.static_obs_state[i]['y'] - y) ** 2 +
-            (self.static_obs_state[i]['z'] - z) ** 2) for i in range(len(self.static_obs_state))]
-        dynamic_obs_dis = [np.sqrt(
-            (self.dynamic_obs_state[i]['x'] - x) ** 2 +
-            (self.dynamic_obs_state[i]['y'] - y) ** 2 +
-            (self.dynamic_obs_state[i]['z'] - z) ** 2) for i in range(len(self.dynamic_obs_state))]
-        tar_dis = np.sqrt((x - self.target[0]['x']) ** 2 +
-                          (y - self.target[0]['y']) ** 2 +
-                          (z - self.target[0]['z']) ** 2)
+        # static_obs_dis = [np.sqrt(
+        #     (self.static_obs_state[i]['x'] - x) ** 2 +
+        #     (self.static_obs_state[i]['y'] - y) ** 2 +
+        #     (self.static_obs_state[i]['z'] - z) ** 2) for i in range(len(self.static_obs_state))]
+        # dynamic_obs_dis = [np.sqrt(
+        #     (self.dynamic_obs_state[i]['x'] - x) ** 2 +
+        #     (self.dynamic_obs_state[i]['y'] - y) ** 2 +
+        #     (self.dynamic_obs_state[i]['z'] - z) ** 2) for i in range(len(self.dynamic_obs_state))]
+        # tar_dis = np.sqrt((x - self.target[0]['x']) ** 2 +
+        #                   (y - self.target[0]['y']) ** 2 +
+        #                   (z - self.target[0]['z']) ** 2)
         # urep_static = np.where(np.array(static_obs_dis) < self.min_range,
         #                        np.exp((-np.array(static_obs_dis))/100), 0)
         # urep_dynamic = np.where(np.array(dynamic_obs_dis) < self.min_range,
         #                         np.exp((-np.array(dynamic_obs_dis))/100), 0)
+        #
         # uatt = np.exp(-tar_dis/1000)
         # reward += 20 * uatt - sum(urep_static) - sum(urep_dynamic)
-
-        urep_static = np.where(np.array(static_obs_dis) < self.min_range,
-                               - 1 / 2 * self.rep * (1 / np.array(static_obs_dis) - 1 / self.min_range), 0)
-        urep_dynamic = np.where(np.array(dynamic_obs_dis) < self.min_range,
-                               - 1 / 2 * self.rep * (1 / np.array(dynamic_obs_dis) - 1 / self.min_range), 0)
-        uatt = - self.att * tar_dis
-        reward += 0.05*sum(urep_static) + 0.05*sum(urep_dynamic)
-        reward += 0.1*uatt
+        #
+        # if tar_dis < self.min_sep:
+        #     reward += 200.0
+        # if np.any(np.array(static_obs_dis) < self.min_sep) or np.any(np.array(dynamic_obs_dis) < self.min_sep):
+        #     reward += -200.0
 
         return reward
 
@@ -477,8 +436,8 @@ if __name__ == "__main__":
         action = env.sample_action()
         s, r, done = env.step(action)
         print(f"currently, the {i + 1} step:\n"
-              f"           Action: speed {action[0]['delta_v_x']*5.0, action[0]['delta_v_y']*5.0, action[0]['delta_v_z']*0.5}\n"
-              f"           State: pos {s[0]['x']*5000.0, s[0]['y']*5000.0, s[0]['z']*300.0};   speed {s[0]['v_x']*200, s[0]['v_y']*200.0, s[0]['v_z']*10}\n"
+              f"           Action: speed {action[0]['delta_v_x'], action[0]['delta_v_y'], action[0]['delta_v_z']}\n"
+              f"           State: pos {s[0]['x'], s[0]['y'], s[0]['z']};   speed {s[0]['v_x'], s[0]['v_y'], s[0]['v_z']}\n"
               f"           Reward:{r}\n")
         if done:
             env.show_path()
@@ -494,12 +453,4 @@ if __name__ == "__main__":
     #         y[xx][yy] = yy * 10
     #         r[xx][yy] = env.plot_reward(xx*10, yy*10, 200)
     # ax.scatter(x, y, r, s=0.01)
-    # plt.show()
-
-    # x = np.arange(-500, 5500, 10)
-    # y = np.arange(-500, 5500, 10)
-    # X, Y = np.meshgrid(x, y)
-    # Z = env.plot_reward(X, Y)
-    # ct = plt.contour(X, Y, Z, 100)
-    # plt.clabel(ct, inline=True)
     # plt.show()
