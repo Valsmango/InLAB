@@ -177,7 +177,6 @@ def optimize_model(Q_net=None, Q_target_net=None, replay_buffer=None, batch_size
     q_out, _, _ = Q_net(observations, h.to(device), c.to(device))
     q_a = q_out.gather(2, actions)
 
-
     # Multiply Importance Sampling weights to loss
     loss = F.smooth_l1_loss(q_a, targets)
 

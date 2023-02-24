@@ -42,13 +42,28 @@ def training_rewards_plot(rewards, max_training_steps):
 
 
 if __name__ == "__main__":
-    policy_name = "TD3"
-    env_name = "UAV_single_continuous"
-    seed_num = 10
-    file_name = f"{policy_name}_{env_name}_{seed_num}"
-    # avg_rewards = np.load(f"./results/avg_{file_name}.npy")
+    # ####################################  载入PPO  ##########################################
+    # policy_name = "PPO_Beta"
+    # env_name = "StandardEnv"
+    # seed_num = 10
+    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    # avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
     # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
-    all_rewards = np.load(f"./results/all_{file_name}.npy")
-    all_eval_result_plot(rewards=all_rewards, eval_frequent=5000)
-    # rewards = [[50, 60, 55], [70, 70, 70], [50, 75, 100], [100, 105, 100]]
-    # all_eval_result_plot(rewards, 10)
+    # # # all_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
+    # # # all_eval_result_plot(rewards=all_rewards, eval_frequent=5000)
+
+    ####################################  载入TD3  ##########################################
+    policy_name = "TD3"
+    env_name = "StandardEnv"
+    seed_num = 10
+    file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
+    avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+
+    # ####################################  载入SAC  ##########################################
+    # policy_name = "SAC"
+    # env_name = "StandardEnv"
+    # seed_num = 10
+    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    # avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
+    # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)

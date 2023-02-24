@@ -8,28 +8,28 @@ from rl_plotter.logger import Logger
 
 
 def create_map():
-    static_obstacle_num = 90
+    static_obstacle_num = 40
     dynamic_obstacle_num = 10
     static_obs_info = []
     dynamic_obs_info = []
     for i in range(static_obstacle_num):
-        x_i = np.random.rand(1) * 4000 + 500
-        y_i = np.random.rand(1) * 4000 + 500
-        z_i = np.random.rand(1) * 300
+        x_i = np.random.rand() * 4000 + 500
+        y_i = np.random.rand() * 4000 + 500
+        z_i = np.random.rand() * 300
         v_x_i = 0.
         v_y_i = 0.
         v_z_i = 0.
-        static_obs_info.append({'x': float(x_i), 'y': float(y_i), 'z': float(z_i),
-                                'v_x': float(v_x_i), 'v_y': float(v_y_i), 'v_z': float(v_z_i)})
+        static_obs_info.append({'x': x_i, 'y': y_i, 'z': z_i,
+                                'v_x': v_x_i, 'v_y': v_y_i, 'v_z': v_z_i})
     for i in range(dynamic_obstacle_num):
-        x_i = np.random.rand(1) * 4000 + 500
-        y_i = np.random.rand(1) * 4000 + 500
-        z_i = np.random.rand(1) * 300
-        v_x_i = np.random.rand(1) * 50
-        v_y_i = np.random.rand(1) * 50
-        v_z_i = np.random.rand(1) * 6 - 3
-        dynamic_obs_info.append({'x': float(x_i), 'y': float(y_i), 'z': float(z_i),
-                                'v_x': float(v_x_i), 'v_y': float(v_y_i), 'v_z': float(v_z_i)})
+        x_i = np.random.rand() * 4000 + 500
+        y_i = np.random.rand() * 4000 + 500
+        z_i = np.random.rand() * 300
+        v_x_i = np.random.rand() * 25
+        v_y_i = np.random.rand() * 25
+        v_z_i = np.random.rand() * 3 - 1.5
+        dynamic_obs_info.append({'x': x_i, 'y': y_i, 'z': z_i,
+                                'v_x': v_x_i, 'v_y': v_y_i, 'v_z': v_z_i})
     map = np.concatenate((static_obs_info, dynamic_obs_info), axis=0)
     print(static_obs_info)
     print(dynamic_obs_info)

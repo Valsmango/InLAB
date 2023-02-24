@@ -17,12 +17,14 @@ from rl_plotter.logger import Logger
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
 
-def eval_policy(policy, env_name, seed=10, eval_episodes=1):
-    eval_env = envController.getEnv(env_name)
-    # eval_env.seed(seed + 10)
+eval_records = []
 
+
+def eval_policy(policy, env_name, seed=10, eval_episodes=40):
     avg_reward = 0.
+    eval_reward = []
     for _ in range(eval_episodes):
+        eval_env = envController.getEnv(env_name)
         state, done = eval_env.reset(), False
         epi_reward = 0.
         while not done:
@@ -38,19 +40,22 @@ def eval_policy(policy, env_name, seed=10, eval_episodes=1):
             epi_reward += reward
         eval_env.close()
         # print(epi_reward)
+        eval_reward.append(epi_reward)
     avg_reward /= eval_episodes
+    eval_records.append(eval_reward)
 
-    print("")
+    # print("")
     print("---------------------------------------")
     print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
     print("---------------------------------------")
     return avg_reward
 
+
 # 程序运行时间：8632.745 s
 if __name__ == "__main__":
 
     starttime = time.time()
-
+    eval_records = []
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", default="TD3")  # Policy name (TD3, DDPG or OurDDPG)
     # parser.add_argument("--env", default="HalfCheetah-v2")  # OpenAI gym environment name
@@ -59,7 +64,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", default=10, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=int)  # Time steps initial random policy is used
     parser.add_argument("--eval_freq", default=5e3, type=int)  # How often (time steps) we evaluate
-    parser.add_argument("--max_timesteps", default=1e6, type=int)  # Max time steps to run environment
+    parser.add_argument("--max_timesteps", default=2e6, type=int)  # Max time steps to run environment
     parser.add_argument("--expl_noise", default=0.1)  # Std of Gaussian exploration noise
     parser.add_argument("--batch_size", default=256, type=int)  # Batch size for both actor and critic
     parser.add_argument("--discount", default=0.99)  # Discount factor
@@ -110,6 +115,7 @@ if __name__ == "__main__":
         kwargs["policy_noise"] = args.policy_noise * max_action
         kwargs["noise_clip"] = args.noise_clip * max_action
         kwargs["policy_freq"] = args.policy_freq
+        kwargs["buffer_capacity"] = args.max_timesteps
         policy = TD3.TD3(**kwargs)
     # elif args.policy == "OurDDPG":
     #     policy = OurDDPG.OurDDPG(**kwargs)
@@ -120,7 +126,8 @@ if __name__ == "__main__":
         policy.load(f"./models/{file_name}")
 
     # Evaluate untrained policy
-    evaluations = [eval_policy(policy, args.env, args.seed)]
+    # evaluations = [eval_policy(policy, args.env, args.seed)]
+    evaluations = []
 
     state, done = env.reset(), False
     # env.render()
@@ -164,6 +171,7 @@ if __name__ == "__main__":
                 f"Env Id: {env.get_env_id()}  Total T: {t + 1}  Episode Num: {episode_num + 1}  Episode T: {episode_timesteps}  Reward: {episode_reward:.3f}")
             # Reset environment
             env.close()
+            env = envController.getEnv(args.env)
             state, done = env.reset(), False
             episode_reward = 0
             episode_timesteps = 0
@@ -172,7 +180,7 @@ if __name__ == "__main__":
         # Evaluate episode
         if t >= args.start_timesteps and (t + 1) % args.eval_freq == 0:
             evaluations.append(eval_policy(policy, args.env, args.seed))
-            np.save(f"./results/{file_name}", evaluations)
+            np.save(f"./results/avg_{file_name}", evaluations)
 
 
     policy.save(f"./models/{file_name}")
@@ -181,4 +189,4 @@ if __name__ == "__main__":
     dtime = endtime - starttime
     print("程序运行时间：%.8s s" % dtime)
     print(evaluations)
-
+    np.save(f"./results/all_{file_name}", eval_records)

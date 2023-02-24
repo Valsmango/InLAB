@@ -12,6 +12,10 @@ from DRLpractice.UAV.UAVsingle.replaybuffer import TD3ReplayBuffer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def orthogonal_init(layer, gain=1.0):
+    nn.init.orthogonal_(layer.weight, gain=gain)
+    nn.init.constant_(layer.bias, 0)
+
 # Actor利大
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action):
@@ -20,21 +24,16 @@ class Actor(nn.Module):
         self.l1 = nn.Linear(state_dim, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, action_dim)
+        orthogonal_init(self.l1)
+        orthogonal_init(self.l2)
+        orthogonal_init(self.l3, gain=0.01)
 
-        self.max_action = max_action
+        self.max_action = torch.Tensor(max_action).to(device)
 
     def forward(self, state):
-        state = (state - torch.Tensor([0.0, 0.0, 150.0,
-                                       100.0, 100.0, 0.0,
-                                       5000.0, 5000.0, 150.0,
-                                       0.0, 0.0, 0.0]).to(device)) / \
-                torch.Tensor([5000.0, 5000.0, 300.0,
-                              350.0, 350.0, 50.0,
-                              5000.0, 5000.0, 300.0,
-                              5000.0, 5000.0, 300.0]).to(device)
         a = F.relu(self.l1(state))
         a = F.relu(self.l2(a))
-        return torch.Tensor(self.max_action).to(device) * torch.tanh(self.l3(a))
+        return self.max_action * torch.tanh(self.l3(a))
 
 
 # Critic利大
@@ -45,24 +44,18 @@ class Critic(nn.Module):
         self.l1 = nn.Linear(state_dim + action_dim, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, 1)
+        orthogonal_init(self.l1)
+        orthogonal_init(self.l2)
+        orthogonal_init(self.l3)
 
     def forward(self, state, action):
-        state = (state - torch.Tensor([0.0, 0.0, 150.0,
-                                       100.0, 100.0, 0.0,
-                                       5000.0, 5000.0, 150.0,
-                                       0.0, 0.0, 0.0]).to(device)) / \
-                torch.Tensor([5000.0, 5000.0, 300.0,
-                              350.0, 350.0, 50.0,
-                              5000.0, 5000.0, 300.0,
-                              5000.0, 5000.0, 300.0]).to(device)
-        action = action / torch.Tensor([5.0, 5.0, 1.0]).to(device)
         q = F.relu(self.l1(torch.cat([state, action], 1)))
         q = F.relu(self.l2(q))
         return self.l3(q)
 
 
 class DDPG(object):
-    def __init__(self, state_dim, action_dim, max_action, discount=0.99, tau=0.005):
+    def __init__(self, state_dim, action_dim, max_action, discount=0.99, tau=0.005, buffer_capacity=int(1e6)):
         self.actor = Actor(state_dim, action_dim, max_action).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
@@ -74,19 +67,32 @@ class DDPG(object):
         self.discount = discount
         self.tau = tau
 
-        self.memory = TD3ReplayBuffer(state_dim=state_dim, action_dim=action_dim, max_size=int(1e6))
+        self.total_it = 0
+
+        self.memory = TD3ReplayBuffer(state_dim=state_dim, action_dim=action_dim, max_size=buffer_capacity)
 
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
         return self.actor(state).cpu().data.numpy().flatten()
 
     def train(self, batch_size=64):
+        self.total_it += 1
+
         # Sample replay buffer
         state, action, next_state, reward, not_done = self.memory.sample(batch_size)
+        state = np.array([list(state[i].values()) for i in range(len(state))])
+        action = np.array([list(action[i].values()) for i in range(len(action))])
+        next_state = np.array([list(next_state[i].values()) for i in range(len(next_state))])
+        state = torch.FloatTensor(state).to(device)
+        action = torch.FloatTensor(action).to(device)
+        next_state = torch.FloatTensor(next_state).to(device)
+        reward = torch.FloatTensor(reward).to(device)
+        not_done = torch.FloatTensor(not_done).to(device)
 
         # Compute the target Q value
         target_Q = self.critic_target(next_state, self.actor_target(next_state))
-        target_Q = reward + (not_done * self.discount * target_Q).detach()
+        target_Q = reward + (not_done * self.discount * target_Q.squeeze()).detach()
+        target_Q = target_Q.unsqueeze(1)
 
         # Get current Q estimate
         current_Q = self.critic(state, action)

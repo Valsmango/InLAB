@@ -24,7 +24,7 @@ class Actor(nn.Module):
         self.l3 = nn.Linear(256, action_dim)
         orthogonal_init(self.l1)
         orthogonal_init(self.l2)
-        orthogonal_init(self.l3)
+        orthogonal_init(self.l3, gain=0.01)
 
         self.max_action = torch.Tensor(max_action).to(device)
 
@@ -85,7 +85,8 @@ class TD3(object):
             tau=0.005,
             policy_noise=0.2,
             noise_clip=0.5,
-            policy_freq=2
+            policy_freq=2,
+            buffer_capacity=int(1e6)
     ):
 
         self.actor = Actor(state_dim, action_dim, max_action).to(device)
@@ -105,7 +106,7 @@ class TD3(object):
 
         self.total_it = 0
 
-        self.memory = TD3ReplayBuffer(state_dim=state_dim, action_dim=action_dim, max_size=int(1e6))
+        self.memory = TD3ReplayBuffer(state_dim=state_dim, action_dim=action_dim, max_size=buffer_capacity)
 
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)

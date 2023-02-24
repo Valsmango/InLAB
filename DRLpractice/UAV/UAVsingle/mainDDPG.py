@@ -15,26 +15,34 @@ import time
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
 
-def eval_policy(policy, env_name, seed, eval_episodes=10):
-    eval_env = envController.getEnv(env_name)
-    eval_env.seed(seed + 100)
+eval_records = []
 
+
+def eval_policy(policy, env_name, seed, eval_episodes=10):
     avg_reward = 0.
+    eval_reward = []
     for _ in range(eval_episodes):
+        eval_env = envController.getEnv(env_name)
         state, done = eval_env.reset(), False
+        epi_reward = 0.
         while not done:
-            eval_env.render()
-            time.sleep(0.01)
+            # eval_env.render()
+            # time.sleep(0.01)
             state = np.array([list(state[i].values()) for i in range(len(state))])
             action = policy.select_action(state)
+            # print(action)
             action = [dict(zip(['delta_v_x', 'delta_v_y', 'delta_v_z'], action))]
-            print(action)
             state, reward, done = eval_env.step(action)
 
             avg_reward += reward
+            epi_reward += reward
         eval_env.close()
+        # print(epi_reward)
+        eval_reward.append(epi_reward)
     avg_reward /= eval_episodes
+    eval_records.append(eval_reward)
 
+    # print("")
     print("---------------------------------------")
     print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}")
     print("---------------------------------------")
@@ -44,7 +52,7 @@ def eval_policy(policy, env_name, seed, eval_episodes=10):
 if __name__ == "__main__":
 
     starttime = time.time()
-
+    eval_records = []
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", default="DDPG")  # Policy name (TD3, DDPG or OurDDPG)
     # parser.add_argument("--env", default="HalfCheetah-v2")  # OpenAI gym environment name
@@ -73,19 +81,20 @@ if __name__ == "__main__":
     if not os.path.exists("./results"):
         os.makedirs("./results")
 
-    if args.save_model and not os.path.exists("./models/runs"):
-        os.makedirs("./models/runs")
+    if not os.path.exists("./models"):
+        os.makedirs("./models")
 
     env = envController.getEnv(args.env)
 
     # Set seeds
     env.seed(args.seed)
     torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
     np.random.seed(args.seed)
 
     state_dim = 12
     action_dim = 3
-    max_action = np.array([5.0, 5.0, 1.0])
+    max_action = np.array([1.0, 1.0, 1.0])
 
     kwargs = {
         "state_dim": state_dim,
@@ -97,14 +106,14 @@ if __name__ == "__main__":
 
     # Initialize policy
     if args.policy == "DDPG":
-        policy = DDPG(**kwargs)
+        kwargs["buffer_capacity"] = args.max_timesteps
+        policy = DDPG.DDPG(**kwargs)
 
     if args.load_model != "":
-        policy_file = file_name if args.load_model == "default" else args.load_model
-        policy.load(f"./models/runs/{policy_file}")
+        policy.load(f"./models/{file_name}")
 
     # Evaluate untrained policy
-    evaluations = [eval_policy(policy, args.env, args.seed)]
+    evaluations = []
 
     state, done = env.reset(), False
     episode_reward = 0
@@ -146,6 +155,7 @@ if __name__ == "__main__":
                 f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             # Reset environment
             env.close()
+            env = envController.getEnv(args.env)
             state, done = env.reset(), False
             episode_reward = 0
             episode_timesteps = 0
@@ -155,9 +165,11 @@ if __name__ == "__main__":
         if t >= args.start_timesteps and (t + 1) % args.eval_freq == 0:
             evaluations.append(eval_policy(policy, args.env, args.seed))
             np.save(f"./results/{file_name}", evaluations)
-            if args.save_model: policy.save(f"./models/{file_name}")
+
+    policy.save(f"./models/{file_name}")
 
     endtime = time.time()
     dtime = endtime - starttime
     print("程序运行时间：%.8s s" % dtime)
     print(evaluations)
+    np.save(f"./results/all_{file_name}", eval_records)
