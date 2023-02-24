@@ -12,6 +12,8 @@ import os
 from graduation.envs.StandardEnv import *
 import time
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class RunningMeanStd:
     # Dynamically calculate mean and std
@@ -86,13 +88,13 @@ class ReplayBuffer:
         self.count += 1
 
     def numpy_to_tensor(self):
-        s = torch.tensor(self.s, dtype=torch.float)
-        a = torch.tensor(self.a, dtype=torch.float)
-        a_logprob = torch.tensor(self.a_logprob, dtype=torch.float)
-        r = torch.tensor(self.r, dtype=torch.float)
-        s_ = torch.tensor(self.s_, dtype=torch.float)
-        dw = torch.tensor(self.dw, dtype=torch.float)
-        done = torch.tensor(self.done, dtype=torch.float)
+        s = torch.tensor(self.s, dtype=torch.float).to(device)
+        a = torch.tensor(self.a, dtype=torch.float).to(device)
+        a_logprob = torch.tensor(self.a_logprob, dtype=torch.float).to(device)
+        r = torch.tensor(self.r, dtype=torch.float).to(device)
+        s_ = torch.tensor(self.s_, dtype=torch.float).to(device)
+        dw = torch.tensor(self.dw, dtype=torch.float).to(device)
+        done = torch.tensor(self.done, dtype=torch.float).to(device)
 
         return s, a, a_logprob, r, s_, dw, done
 
@@ -206,10 +208,10 @@ class PPO_continuous():
         self.use_adv_norm = args.use_adv_norm
 
         if self.policy_dist == "Beta":
-            self.actor = Actor_Beta(args)
+            self.actor = Actor_Beta(args).to(device)
         else:
-            self.actor = Actor_Gaussian(args)
-        self.critic = Critic(args)
+            self.actor = Actor_Gaussian(args).to(device)
+        self.critic = Critic(args).to(device)
 
         if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
             self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr_a, eps=1e-5)
@@ -219,15 +221,17 @@ class PPO_continuous():
             self.optimizer_critic = torch.optim.Adam(self.critic.parameters(), lr=self.lr_c)
 
     def evaluate(self, s):  # When evaluating the policy, we only use the mean
-        s = torch.tensor(s, dtype=torch.float)
+        # s = torch.tensor(s, dtype=torch.float)
+        s = torch.FloatTensor(s.reshape(1, -1)).to(device)
         if self.policy_dist == "Beta":
-            a = self.actor.mean(s).detach().numpy().flatten()
+            a = self.actor.mean(s).cpu().detach().numpy().flatten()
         else:
-            a = self.actor(s).detach().numpy().flatten()
+            a = self.actor(s).cpu().detach().numpy().flatten()
         return a
 
     def choose_action(self, s):
-        s = torch.tensor(s, dtype=torch.float)
+        # s = torch.tensor(s, dtype=torch.float)
+        s = torch.FloatTensor(s.reshape(1, -1)).to(device)
         if self.policy_dist == "Beta":
             with torch.no_grad():
                 dist = self.actor.get_dist(s)
@@ -239,7 +243,7 @@ class PPO_continuous():
                 a = dist.sample()  # Sample the action according to the probability distribution
                 a = torch.clamp(a, -self.max_action, self.max_action)  # [-max,max]
                 a_logprob = dist.log_prob(a)  # The log probability density of the action
-        return a.numpy().flatten(), a_logprob.numpy().flatten()
+        return a.cpu().numpy().flatten(), a_logprob.cpu().numpy().flatten()
 
     def update(self, replay_buffer, total_steps):
         s, a, a_logprob, r, s_, dw, done = replay_buffer.numpy_to_tensor()  # Get training data
@@ -254,10 +258,10 @@ class PPO_continuous():
             vs = self.critic(s)
             vs_ = self.critic(s_)
             deltas = r + self.gamma * (1.0 - dw) * vs_ - vs
-            for delta, d in zip(reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())):
+            for delta, d in zip(reversed(deltas.cpu().flatten().numpy()), reversed(done.cpu().flatten().numpy())):
                 gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
                 adv.insert(0, gae)
-            adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
+            adv = torch.tensor(adv, dtype=torch.float).view(-1, 1).to(device)
             v_target = adv + vs
             if self.use_adv_norm:  # Trick 1:advantage normalization
                 adv = ((adv - adv.mean()) / (adv.std() + 1e-5))
@@ -374,8 +378,8 @@ def main(args, env_name="StandardEnv", seed=10):
     # tensorboard --logdir=./graduation/runs/PPO/
     if not os.path.exists("./eval_reward_train"):
         os.makedirs("./eval_reward_train")
-    if not os.path.exists("./model_train"):
-        os.makedirs("./model_train")
+    if not os.path.exists("./model_train/PPO"):
+        os.makedirs("./model_train/PPO")
 
     state_norm = Normalization(shape=args.state_dim)  # Trick 2:state normalization
     if args.use_reward_norm:  # Trick 3:reward normalization
@@ -455,10 +459,10 @@ if __name__ == '__main__':
     parser.add_argument("--lamda", type=float, default=0.95, help="GAE parameter")
     parser.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
     parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
-    parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
-    parser.add_argument("--use_state_norm", type=bool, default=True, help="Trick 2:state normalization")
-    parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
-    parser.add_argument("--use_reward_scaling", type=bool, default=True, help="Trick 4:reward scaling")
+    parser.add_argument("--use_adv_norm", type=bool, default=False, help="Trick 1:advantage normalization")  # True
+    parser.add_argument("--use_state_norm", type=bool, default=False, help="Trick 2:state normalization")  # True
+    parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")  # False
+    parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")  # True
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
     parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
     parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")

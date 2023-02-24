@@ -52,13 +52,13 @@ if __name__ == "__main__":
     # # # all_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
     # # # all_eval_result_plot(rewards=all_rewards, eval_frequent=5000)
 
-    ####################################  载入TD3  ##########################################
-    policy_name = "TD3"
-    env_name = "StandardEnv"
-    seed_num = 10
-    file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
-    avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
-    avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    # ####################################  载入TD3  ##########################################
+    # policy_name = "TD3"
+    # env_name = "StandardEnv"
+    # seed_num = 10
+    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    # avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
+    # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
 
     # ####################################  载入SAC  ##########################################
     # policy_name = "SAC"
@@ -67,3 +67,11 @@ if __name__ == "__main__":
     # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
     # avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
     # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+
+    ####################################  载入DDPG  ##########################################
+    policy_name = "DDPG"
+    env_name = "StandardEnv"
+    seed_num = 10
+    file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
+    avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)

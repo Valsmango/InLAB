@@ -9,6 +9,13 @@ from torch.utils.tensorboard import SummaryWriter
 from graduation.envs.StandardEnv import *
 import os
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def orthogonal_init(layer, gain=1.0):
+    nn.init.orthogonal_(layer.weight, gain=gain)
+    nn.init.constant_(layer.bias, 0)
+
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_width, max_action):
@@ -17,6 +24,9 @@ class Actor(nn.Module):
         self.l1 = nn.Linear(state_dim, hidden_width)
         self.l2 = nn.Linear(hidden_width, hidden_width)
         self.l3 = nn.Linear(hidden_width, action_dim)
+        # orthogonal_init(self.l1)
+        # orthogonal_init(self.l2)
+        # orthogonal_init(self.l3, gain=0.01)
 
     def forward(self, s):
         s = F.relu(self.l1(s))
@@ -31,6 +41,9 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
         self.l2 = nn.Linear(hidden_width, hidden_width)
         self.l3 = nn.Linear(hidden_width, 1)
+        # orthogonal_init(self.l1)
+        # orthogonal_init(self.l2)
+        # orthogonal_init(self.l3)
 
     def forward(self, s, a):
         q = F.relu(self.l1(torch.cat([s, a], 1)))
@@ -61,11 +74,11 @@ class ReplayBuffer(object):
 
     def sample(self, batch_size):
         index = np.random.choice(self.size, size=batch_size)  # Randomly sampling
-        batch_s = torch.tensor(self.s[index], dtype=torch.float)
-        batch_a = torch.tensor(self.a[index], dtype=torch.float)
-        batch_r = torch.tensor(self.r[index], dtype=torch.float)
-        batch_s_ = torch.tensor(self.s_[index], dtype=torch.float)
-        batch_dw = torch.tensor(self.dw[index], dtype=torch.float)
+        batch_s = torch.tensor(self.s[index], dtype=torch.float).to(device)
+        batch_a = torch.tensor(self.a[index], dtype=torch.float).to(device)
+        batch_r = torch.tensor(self.r[index], dtype=torch.float).to(device)
+        batch_s_ = torch.tensor(self.s_[index], dtype=torch.float).to(device)
+        batch_dw = torch.tensor(self.dw[index], dtype=torch.float).to(device)
 
         return batch_s, batch_a, batch_r, batch_s_, batch_dw
 
@@ -78,9 +91,9 @@ class DDPG(object):
         self.TAU = 0.005  # Softly update the target network
         self.lr = 3e-4  # learning rate
 
-        self.actor = Actor(state_dim, action_dim, self.hidden_width, max_action)
+        self.actor = Actor(state_dim, action_dim, self.hidden_width, max_action).to(device)
         self.actor_target = copy.deepcopy(self.actor)
-        self.critic = Critic(state_dim, action_dim, self.hidden_width)
+        self.critic = Critic(state_dim, action_dim, self.hidden_width).to(device)
         self.critic_target = copy.deepcopy(self.critic)
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
@@ -89,8 +102,8 @@ class DDPG(object):
         self.MseLoss = nn.MSELoss()
 
     def choose_action(self, s):
-        # s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
-        a = self.actor(s).data.numpy().flatten()
+        s = torch.FloatTensor(s.reshape(1, -1)).to(device)
+        a = self.actor(s).cpu().data.numpy().flatten()
         return a
 
     def learn(self, relay_buffer):
@@ -191,7 +204,7 @@ if __name__ == '__main__':
     max_train_steps = 1e6  # Maximum number of training steps
     random_steps = 25e3  # Take the random actions in the beginning for the better exploration
     update_freq = 50  # Take 50 steps,then update the networks 50 times
-    evaluate_freq = 1e3  # Evaluate the policy every 'evaluate_freq' steps
+    evaluate_freq = 5e3  # Evaluate the policy every 'evaluate_freq' steps
     evaluate_num = 0  # Record the number of evaluations
     evaluate_rewards = []  # Record the rewards during the evaluating
     total_steps = 0  # Record the total steps during the training
@@ -203,8 +216,8 @@ if __name__ == '__main__':
 
     if not os.path.exists("./eval_reward_train"):
         os.makedirs("./eval_reward_train")
-    if not os.path.exists("./model_train"):
-        os.makedirs("./model_train")
+    if not os.path.exists("./model_train/DDPG"):
+        os.makedirs("./model_train/DDPG")
 
     while total_steps < max_train_steps:
         env = StandardEnv()

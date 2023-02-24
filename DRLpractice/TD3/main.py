@@ -5,10 +5,10 @@ import os
 import numpy as np
 import torch
 
-from . import utils
-from .models import OriginDDPG
-from .models import TD3
-from .models import OurDDPG
+from DRLpractice.TD3.utils import *
+from DRLpractice.TD3.models import OriginDDPG
+from DRLpractice.TD3.models import TD3
+from DRLpractice.TD3.models import OurDDPG
 
 import time
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     starttime = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", default="OriginDDPG")  # Policy name (TD3, DDPG or OurDDPG)
+    parser.add_argument("--policy", default="TD3")  # Policy name (TD3, DDPG or OurDDPG)
     # parser.add_argument("--env", default="HalfCheetah-v2")  # OpenAI gym environment name
     # mujoco环境介绍： https://www.jianshu.com/p/e7235f8af25e
     parser.add_argument("--env", default="Hopper-v2")  # OpenAI gym environment name
@@ -114,7 +114,7 @@ if __name__ == "__main__":
         policy_file = file_name if args.load_model == "default" else args.load_model
         policy.load(f"./models/{policy_file}")
 
-    replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+    replay_buffer = ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
     evaluations = [eval_policy(policy, args.env, args.seed)]

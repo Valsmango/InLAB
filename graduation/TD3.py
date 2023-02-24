@@ -10,6 +10,13 @@ from graduation.envs.StandardEnv import *
 import os
 import time
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def orthogonal_init(layer, gain=1.0):
+    nn.init.orthogonal_(layer.weight, gain=gain)
+    nn.init.constant_(layer.bias, 0)
+
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_width, max_action):
@@ -18,6 +25,9 @@ class Actor(nn.Module):
         self.l1 = nn.Linear(state_dim, hidden_width)
         self.l2 = nn.Linear(hidden_width, hidden_width)
         self.l3 = nn.Linear(hidden_width, action_dim)
+        # orthogonal_init(self.l1)
+        # orthogonal_init(self.l2)
+        # orthogonal_init(self.l3, gain=0.01)
 
     def forward(self, s):
         s = F.relu(self.l1(s))
@@ -33,10 +43,16 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
         self.l2 = nn.Linear(hidden_width, hidden_width)
         self.l3 = nn.Linear(hidden_width, 1)
+        # orthogonal_init(self.l1)
+        # orthogonal_init(self.l2)
+        # orthogonal_init(self.l3)
         # Q2
         self.l4 = nn.Linear(state_dim + action_dim, hidden_width)
         self.l5 = nn.Linear(hidden_width, hidden_width)
         self.l6 = nn.Linear(hidden_width, 1)
+        # orthogonal_init(self.l4)
+        # orthogonal_init(self.l5)
+        # orthogonal_init(self.l6)
 
     def forward(self, s, a):
         s_a = torch.cat([s, a], 1)
@@ -81,11 +97,11 @@ class ReplayBuffer(object):
 
     def sample(self, batch_size):
         index = np.random.choice(self.size, size=batch_size)  # Randomly sampling
-        batch_s = torch.tensor(self.s[index], dtype=torch.float)
-        batch_a = torch.tensor(self.a[index], dtype=torch.float)
-        batch_r = torch.tensor(self.r[index], dtype=torch.float)
-        batch_s_ = torch.tensor(self.s_[index], dtype=torch.float)
-        batch_dw = torch.tensor(self.dw[index], dtype=torch.float)
+        batch_s = torch.tensor(self.s[index], dtype=torch.float).to(device)
+        batch_a = torch.tensor(self.a[index], dtype=torch.float).to(device)
+        batch_r = torch.tensor(self.r[index], dtype=torch.float).to(device)
+        batch_s_ = torch.tensor(self.s_[index], dtype=torch.float).to(device)
+        batch_dw = torch.tensor(self.dw[index], dtype=torch.float).to(device)
 
         return batch_s, batch_a, batch_r, batch_s_, batch_dw
 
@@ -103,9 +119,9 @@ class TD3(object):
         self.policy_freq = 2  # The frequency of policy updates
         self.actor_pointer = 0
 
-        self.actor = Actor(state_dim, action_dim, self.hidden_width, max_action)
+        self.actor = Actor(state_dim, action_dim, self.hidden_width, max_action).to(device)
         self.actor_target = copy.deepcopy(self.actor)
-        self.critic = Critic(state_dim, action_dim, self.hidden_width)
+        self.critic = Critic(state_dim, action_dim, self.hidden_width).to(device)
         self.critic_target = copy.deepcopy(self.critic)
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
@@ -113,7 +129,8 @@ class TD3(object):
 
     def choose_action(self, s):
         # s = torch.unsqueeze(s, 0)   # s = torch.FloatTensor(s.reshape(1, -1))
-        a = self.actor(s).data.numpy().flatten()
+        s = torch.FloatTensor(s.reshape(1, -1)).to(device)
+        a = self.actor(s).cpu().data.numpy().flatten()
         return a
 
     def learn(self, relay_buffer):
@@ -126,7 +143,6 @@ class TD3(object):
             # torch.randn_like can generate random numbers sampled from N(0,1)，which have the same size as 'batch_a'
             noise = (torch.randn_like(batch_a) * self.policy_noise).clamp(-self.noise_clip, self.noise_clip)
             next_action = (self.actor_target(batch_s_) + noise).clamp(-self.max_action, self.max_action)
-
             # Trick 2:clipped double Q-learning
             target_Q1, target_Q2 = self.critic_target(batch_s_, next_action)
             target_Q = batch_r + self.GAMMA * (1 - batch_dw) * torch.min(target_Q1, target_Q2)
@@ -233,8 +249,8 @@ if __name__ == '__main__':
 
     if not os.path.exists("./eval_reward_train"):
         os.makedirs("./eval_reward_train")
-    if not os.path.exists("./model_train"):
-        os.makedirs("./model_train")
+    if not os.path.exists("./model_train/TD3"):
+        os.makedirs("./model_train/TD3")
 
     while total_steps < max_train_steps:
         env = StandardEnv()
