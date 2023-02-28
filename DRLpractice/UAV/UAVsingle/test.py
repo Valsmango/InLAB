@@ -77,10 +77,15 @@ def test_rl_plotter():
     pass
 
 if __name__ == "__main__":
-    static_obs_info, dynamic_obs_info = create_map() # 测试
+    # static_obs_info, dynamic_obs_info = create_map() # 测试
     # save_to_file(static_obs_info, "static_obs")
     # save_to_file(dynamic_obs_info, "dynamic_obs")
     # print(np.array(list(static_obs_info[0].values())))
     # print(np.array([list(static_obs_info[i].values()) for i in range(len(static_obs_info))]))
     # print(torch.tensor([5, 3]) - torch.tensor([1, 2]))
     # pass
+    # np.random.seed(0)
+    # # print(np.random.normal(loc=0, scale=0.01, size=3)) # [0.01764052 0.00400157 0.00978738]
+    # print(np.random.normal(size=3)*0.01)
+    array = np.array([1,2,3,4,5,6])
+    print(array[-6:0])

@@ -1,7 +1,9 @@
 # coding=utf-8
 from graduation.PPO import *
 from graduation.TD3 import *
+from graduation.TD3LSTM import *
 from graduation.SAC import *
+from graduation.SACLSTM import *
 from graduation.DDPG import *
 import torch
 import matplotlib.pyplot as plt
@@ -108,6 +110,53 @@ def model_eval_SAC(policy):
     eval_env.close()
 
 
+def model_eval_SAC_LSTM(agent):
+    eval_env = StandardEnv()
+    eval_env.seed(20)
+    state, done = eval_env.reset(), False
+    reward = 0.0
+    h, c = agent.actor.init_hidden_state(batch_size=1, training=False)
+    for i in range(MAX_EP_STEPS):
+        eval_env.render()
+        time.sleep(0.1)
+        action, h, c = policy.choose_action(state, h, c, deterministic=True)  # Action and the corresponding log probability
+        s, r, done = eval_env.step(action)
+        print(f"currently, the {i + 1} step:\n"
+              f"           Action: speed {action[0]*5.0, action[1]*5.0, action[2]*0.5}\n"
+              f"           State: pos {s[0][0]*5000.0, s[0][1]*5000.0, s[0][2]*300.0};   speed {s[0][3]*200, s[0][4]*200.0, s[0][5]*10}\n"
+              f"           Reward:{r}\n")
+        state = s
+        reward += r
+        if done:
+            break
+    print(reward)
+    eval_env.show_path()
+    eval_env.close()
+
+def model_eval_DDPG_TD3_LSTM(agent):
+    eval_env = StandardEnv()
+    eval_env.seed(20)
+    s, done = eval_env.reset(), False
+    reward = 0.0
+    h, c = agent.actor.init_hidden_state(batch_size=1, training=False)
+    for i in range(MAX_EP_STEPS):
+        eval_env.render()
+        time.sleep(0.1)
+        action, h, c = agent.choose_action(s, h, c)  # We do not add noise when evaluating        s, r, done = eval_env.step(action)
+        s_, r, done = eval_env.step(action)
+        print(f"currently, the {i + 1} step:\n"
+              f"           Action: speed {action[0]*5.0, action[1]*5.0, action[2]*0.5}\n"
+              f"           State: pos {s[0][0]*5000.0, s[0][1]*5000.0, s[0][2]*300.0};   speed {s[0][3]*200, s[0][4]*200.0, s[0][5]*10}\n"
+              f"           Reward:{r}\n")
+        s = s_
+        reward += r
+        if done:
+            break
+    print(reward)
+    eval_env.show_path()
+    eval_env.close()
+
+
 if __name__ == "__main__":
 
     # ####################################  载入PPO  ##########################################
@@ -155,44 +204,74 @@ if __name__ == "__main__":
     # # 测试模型
     # model_eval_PPO(policy, args)
 
-    ####################################  载入TD3  ##########################################
-    state_dim = 12
-    action_dim = 3
-    max_action = 1.0
-    policy_name = "TD3"
-    env_name = "StandardEnv"
-    file_name = f"./model_train/TD3/{policy_name}_{env_name}"
-    policy = TD3(state_dim, action_dim, max_action)
-    policy.load(file_name)
-    # 测试随机选择（非正态分布）
-    # random_eval()
-    # 测试模型
-    model_eval_DDPG_TD3(policy)
+    # ####################################  载入TD3  ##########################################
+    # state_dim = 12
+    # action_dim = 3
+    # max_action = 1.0
+    # policy_name = "TD3"
+    # env_name = "StandardEnv"
+    # file_name = f"./model_train/TD3/{policy_name}_{env_name}"
+    # policy = TD3(state_dim, action_dim, max_action)
+    # policy.load(file_name)
+    # # 测试随机选择（非正态分布）
+    # # random_eval()
+    # # 测试模型
+    # model_eval_DDPG_TD3(policy)
 
-    # ####################################  载入SAC  ##########################################
-    state_dim = 12
-    action_dim = 3
-    max_action = 1.0
-    policy_name = "SAC"
-    env_name = "StandardEnv"
-    file_name = f"./model_train/SAC/{policy_name}_{env_name}"
-    policy = SAC(state_dim, action_dim, max_action)
-    policy.load(file_name)
-    # 测试随机选择（非正态分布）
-    # random_eval()
-    # 测试模型
-    model_eval_SAC(policy)
+    # # ####################################  载入SAC  ##########################################
+    # state_dim = 12
+    # action_dim = 3
+    # max_action = 1.0
+    # policy_name = "SAC"
+    # env_name = "StandardEnv"
+    # file_name = f"./model_train/SAC/{policy_name}_{env_name}"
+    # policy = SAC(state_dim, action_dim, max_action)
+    # policy.load(file_name)
+    # # 测试随机选择（非正态分布）
+    # # random_eval()
+    # # 测试模型
+    # model_eval_SAC(policy)
+    #
+    # # ####################################  载入DDPG  ##########################################
+    # state_dim = 12
+    # action_dim = 3
+    # max_action = 1.0
+    # policy_name = "DDPG"
+    # env_name = "StandardEnv"
+    # file_name = f"./model_train/DDPG/{policy_name}_{env_name}"
+    # policy = DDPG(state_dim, action_dim, max_action)
+    # policy.load(file_name)
+    # # 测试随机选择（非正态分布）
+    # # random_eval()
+    # # 测试模型
+    # model_eval_DDPG_TD3(policy)
 
-    # ####################################  载入DDPG  ##########################################
+    # # ####################################  载入TD3-LSTM  ##########################################
+    # state_dim = 12
+    # action_dim = 3
+    # max_action = 1.0
+    # batch_size = 1
+    # policy_name = "TD3LSTM"
+    # env_name = "StandardEnv"
+    # file_name = f"./model_train/TD3LSTM/{policy_name}_{env_name}"
+    # policy = TD3LSTM(batch_size, state_dim, action_dim, max_action)
+    # policy.load(file_name)
+    # # 测试随机选择（非正态分布）
+    # # random_eval()
+    # # 测试模型
+    # model_eval_DDPG_TD3_LSTM(policy)
+
+    ####################################  载入SAC-LSTM ##########################################
     state_dim = 12
     action_dim = 3
     max_action = 1.0
-    policy_name = "DDPG"
+    batch_size = 1
+    policy_name = "SACLSTM"
     env_name = "StandardEnv"
-    file_name = f"./model_train/DDPG/{policy_name}_{env_name}"
-    policy = DDPG(state_dim, action_dim, max_action)
+    file_name = f"./model_train/SACLSTM/{policy_name}_{env_name}"
+    policy = SACLSTM(batch_size, state_dim, action_dim, max_action)
     policy.load(file_name)
     # 测试随机选择（非正态分布）
     # random_eval()
     # 测试模型
-    model_eval_DDPG_TD3(policy)
+    model_eval_SAC_LSTM(policy)

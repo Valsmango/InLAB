@@ -446,7 +446,7 @@ def main(args, env_name="StandardEnv", seed=10):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameters Setting for PPO-continuous")
-    parser.add_argument("--max_train_steps", type=int, default=int(3e6), help=" Maximum number of training steps")
+    parser.add_argument("--max_train_steps", type=int, default=int(1e6), help=" Maximum number of training steps")
     parser.add_argument("--evaluate_freq", type=float, default=5e3, help="Evaluate the policy every 'evaluate_freq' steps")
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
     parser.add_argument("--policy_dist", type=str, default="Beta", help="Beta or Gaussian")
@@ -465,7 +465,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_reward_scaling", type=bool, default=False, help="Trick 4:reward scaling")  # True
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
     parser.add_argument("--use_lr_decay", type=bool, default=True, help="Trick 6:learning rate Decay")
-    parser.add_argument("--use_grad_clip", type=bool, default=True, help="Trick 7: Gradient clip")
+    parser.add_argument("--use_grad_clip", type=bool, default=False, help="Trick 7: Gradient clip")  # True
     parser.add_argument("--use_orthogonal_init", type=bool, default=True, help="Trick 8: orthogonal initialization")
     parser.add_argument("--set_adam_eps", type=float, default=True, help="Trick 9: set Adam epsilon=1e-5")
     parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")

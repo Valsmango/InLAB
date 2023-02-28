@@ -18,7 +18,7 @@ state设定：【x，y，z，v_x，v_y，v_z，tar_x，tar_y，tar_z，obs_x，o
 action设定：【dvx， dvy， dvz】
 '''
 
-class StandardEnv(object):
+class Env(object):
     def __init__(self):
         self.uav_state = []
         self.path = []
@@ -44,21 +44,29 @@ class StandardEnv(object):
         tar_y = np.random.rand() * 5000
         tar_z = np.random.rand() * 200 + 50
 
-        init_start = [[x, y, z, (tar_x - x) / 50, (tar_y - y) / 50, (tar_z - z) / 50, tar_x, tar_y, tar_z, 0, 0, 0]]
-        init_target = [[tar_x, tar_y, tar_z]]
+        init_start = [[x, y, z, (tar_x - x) / 50, (tar_y - y) / 50, (tar_z - z) / 50, tar_x, tar_y, tar_z, 0, 0, 0],
+                      [tar_x, tar_y, tar_z, (x - tar_x) / 50, (y - tar_y) / 50, (z - tar_z) / 50, x, y, z, 0, 0, 0]]
+        init_target = [[tar_x, tar_y, tar_z], [x, y, z]]
 
         self._init_map(init_start, init_target)
 
     def reset(self):
         self.uav_state = copy.deepcopy(self.uav_init_state)
         self.dynamic_obs_state = copy.deepcopy(self.dynamic_obs_init_state)
-        self.path = []
-        self.path.append([self.uav_state[0][0], self.uav_state[0][1], self.uav_state[0][2]])
+        self.path_uav_0 = []
+        self.path_uav_0.append([self.uav_state[0][0], self.uav_state[0][1], self.uav_state[0][2]])
+        self.path_uav_1 = []
+        self.path_uav_1.append([self.uav_state[1][0], self.uav_state[1][1], self.uav_state[1][2]])
         # 【x，y，z，v_x，v_y，v_z，tar_x，tar_y，tar_z，obs_x，obs_y，obs_z】
         return_state = [np.array(self.uav_state[0]) / np.array([5000.0, 5000.0, 300.0,
                                                             200.0, 200.0, 10.0,
                                                             5000.0, 5000.0, 300.0,
-                                                            5000.0, 5000.0, 300.0])]
+                                                            5000.0, 5000.0, 300.0]),
+                        np.array(self.uav_state[1]) / np.array([5000.0, 5000.0, 300.0,
+                                                                200.0, 200.0, 10.0,
+                                                                5000.0, 5000.0, 300.0,
+                                                                5000.0, 5000.0, 300.0]),
+                        ]
         return torch.Tensor(return_state)
 
     def step(self, input_action):

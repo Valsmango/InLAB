@@ -38,16 +38,16 @@ class Actor(nn.Module):
 class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
     def __init__(self, state_dim, action_dim, hidden_width):
         super(Critic, self).__init__()
-        self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
-        self.l2 = nn.Linear(hidden_width, hidden_width)
+        self.l1 = nn.Linear(state_dim, hidden_width)
+        self.l2 = nn.Linear(hidden_width + action_dim, hidden_width)
         self.l3 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l1)
         # orthogonal_init(self.l2)
         # orthogonal_init(self.l3)
 
     def forward(self, s, a):
-        q = F.relu(self.l1(torch.cat([s, a], 1)))
-        q = F.relu(self.l2(q))
+        q = F.relu(self.l1(s))
+        q = F.relu(self.l2(torch.cat([q, a], 1)))
         q = self.l3(q)
         return q
 
@@ -201,7 +201,7 @@ if __name__ == '__main__':
     print("max_episode_steps={}".format(max_episode_steps))
 
     noise_std = 0.1 * max_action  # the std of Gaussian noise for exploration
-    max_train_steps = 1e6  # Maximum number of training steps
+    max_train_steps = 2e6  # Maximum number of training steps
     random_steps = 25e3  # Take the random actions in the beginning for the better exploration
     update_freq = 50  # Take 50 steps,then update the networks 50 times
     evaluate_freq = 5e3  # Evaluate the policy every 'evaluate_freq' steps
