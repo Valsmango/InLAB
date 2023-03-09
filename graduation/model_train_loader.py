@@ -246,32 +246,32 @@ if __name__ == "__main__":
     # # 测试模型
     # model_eval_DDPG_TD3(policy)
 
-    # # ####################################  载入TD3-LSTM  ##########################################
-    # state_dim = 12
-    # action_dim = 3
-    # max_action = 1.0
-    # batch_size = 1
-    # policy_name = "TD3LSTM"
-    # env_name = "StandardEnv"
-    # file_name = f"./model_train/TD3LSTM/{policy_name}_{env_name}"
-    # policy = TD3LSTM(batch_size, state_dim, action_dim, max_action)
-    # policy.load(file_name)
-    # # 测试随机选择（非正态分布）
-    # # random_eval()
-    # # 测试模型
-    # model_eval_DDPG_TD3_LSTM(policy)
-
-    ####################################  载入SAC-LSTM ##########################################
+    # ####################################  载入TD3-LSTM  ##########################################
     state_dim = 12
     action_dim = 3
     max_action = 1.0
     batch_size = 1
-    policy_name = "SACLSTM"
+    policy_name = "TD3LSTM"
     env_name = "StandardEnv"
-    file_name = f"./model_train/SACLSTM/{policy_name}_{env_name}"
-    policy = SACLSTM(batch_size, state_dim, action_dim, max_action)
+    file_name = f"./model_train/TD3LSTM/{policy_name}_{env_name}"
+    policy = TD3LSTM(batch_size, state_dim, action_dim, max_action)
     policy.load(file_name)
     # 测试随机选择（非正态分布）
     # random_eval()
     # 测试模型
-    model_eval_SAC_LSTM(policy)
+    model_eval_DDPG_TD3_LSTM(policy)
+
+    # # ####################################  载入SAC-LSTM ##########################################
+    # state_dim = 12
+    # action_dim = 3
+    # max_action = 1.0
+    # batch_size = 1
+    # policy_name = "SACLSTM"
+    # env_name = "StandardEnv"
+    # file_name = f"./model_train/SACLSTM/{policy_name}_{env_name}"
+    # policy = SACLSTM(batch_size, state_dim, action_dim, max_action)
+    # policy.load(file_name)
+    # # 测试随机选择（非正态分布）
+    # # random_eval()
+    # # 测试模型
+    # model_eval_SAC_LSTM(policy)

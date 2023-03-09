@@ -8,10 +8,10 @@ from gym.spaces import Box, Discrete
 from pathlib import Path
 from torch.autograd import Variable
 from tensorboardX import SummaryWriter
-from utils.make_env import make_env
-from utils.buffer import ReplayBuffer
-from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
-from algorithms.maddpg import MADDPG
+from .utils.make_env import make_env
+from .utils.buffer import ReplayBuffer
+from .utils.env_wrappers import SubprocVecEnv, DummyVecEnv
+from .algorithms.MADDPG import MADDPG
 
 USE_CUDA = True  # torch.cuda.is_available()
 

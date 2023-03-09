@@ -147,7 +147,8 @@ class Actor(nn.Module):
         self.max_action = max_action
         self.hidden_width = hidden_width
         self.l1 = nn.Linear(state_dim, hidden_width)
-        self.l2 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
+        self.l2 = nn.Linear(hidden_width, hidden_width)
+        self.l3 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
         self.mean_layer = nn.Linear(hidden_width, action_dim)
         self.log_std_layer = nn.Linear(hidden_width, action_dim)
         # orthogonal_init(self.l1)
@@ -159,12 +160,67 @@ class Actor(nn.Module):
         else:
             return torch.zeros([1, 1, self.hidden_width]), torch.zeros([1, 1, self.hidden_width])
 
+    def atten(self, lstm_output, h_t):
+        '''
+        参考的代码为：
+        k = h
+        q = lstm_output
+        v = h
+        lstm_output为 batch，seq_len，hidden_width【1，len，256】   h为 1，batch，hidden_width【1，1，256】
+        （1）先进行规格的转换，变为：lstm_output规格为 batch，len, dim； ht规格为 batch, dim，1
+            h_t = h_t.permute(1, 2, 0)
+        （2）计算weights、attention，规格都为 batch，len，1
+            attn_weights = torch.bmm(lstm_output, h_t)
+            attention = F.softmax(attn_weights, 1)
+        （3）进行规格的转换，变为：lstm_output规格为 batch，dim, len
+            attn_out = torch.bmm(lstm_output.transpose(1, 2), attention)
+        （4）输出即为batch, dim，1，最终规格改回1，batch, dim
+            attn_out = attn_out.permute(2, 0, 1)
+
+            self-atten:  softmax( qk' / sqrt(in_dim)) * v
+        ____________________________________________________________________
+        k = lstm_output
+        q = h
+        v = lstm_output
+        lstm_output为 batch，seq_len，hidden_width【1，len，256】   h为 1，batch，hidden_width【1，1，256】
+        （1）先进行规格的转换，变为：q = ht规格为 batch, len, dim
+            q = h_t.permute(1, 0, 2)  # 【batch，1，dim】
+            trans = torch.ones(h_t.shape[1], lstm_output.shape[1], h_t.shape[0]).to(device)  # 【batch，len，1】
+            q = torch.bmm(trans, q)  # 【batch，len, dim】
+
+        （2）转置 k = lstm_output规格为 batch，dim, len； 计算weights、attention，规格都为 batch，len, len
+            k = lstm_output.permute(0, 2, 1)
+            attn_weights = torch.bmm(q, k)
+            attention = F.softmax(attn_weights, 1)
+        （3）进行规格的转换，变为：v = lstm_output规格为 batch，len, dim    而attention的规格应该是 batch，len，len
+            v = lstm_output
+            attn_out = torch.bmm(attention, v)
+        （4）输出即为batch, len，dim
+        '''
+        # q = h_t.permute(1, 0, 2)  # 【batch，1，dim】
+        # trans = torch.ones(h_t.shape[1], lstm_output.shape[1], h_t.shape[0]).to(device)  # 【batch，len，1】
+        # q = torch.bmm(trans, q)  # 【batch，len, dim】
+        # k = lstm_output.permute(0, 2, 1)
+        # attn_weights = torch.bmm(q, k)
+        # attention = F.softmax(attn_weights, 1)
+        # v = lstm_output
+        # attn_out = torch.bmm(attention, v)
+        # return attn_out
+        h_t = h_t.permute(1, 2, 0)
+        attn_weights = torch.bmm(lstm_output, h_t)
+        attention = F.softmax(attn_weights, 1)
+        attn_out = torch.bmm(lstm_output.transpose(1, 2), attention)
+        attn_out = attn_out.permute(2, 0, 1)
+        return attn_out
+
     def forward(self, x, h_0, c_0, deterministic=False, with_logprob=True):
         if not hasattr(self, '_flattened'):
-            self.l2.flatten_parameters()
+            self.l3.flatten_parameters()
             setattr(self, '_flattened', True)
         x = F.relu(self.l1(x))
-        x, (h_t, c_t) = self.l2(x, (h_0, c_0))
+        x = F.relu(self.l2(x))
+        x, (h_t, c_t) = self.l3(x, (h_0, c_0))
+        h_t = self.atten(x, h_t)
         mean = self.mean_layer(x)
         log_std = self.log_std_layer(x)  # We output the log_std to ensure that std=exp(log_std)>0
         log_std = torch.clamp(log_std, -20, 2)
@@ -193,15 +249,17 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         self.hidden_width = hidden_width
         # Q1
         self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
-        self.l2 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
-        self.l3 = nn.Linear(hidden_width, 1)
+        self.l2 = nn.Linear(hidden_width, hidden_width)
+        self.l3 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
+        self.l4 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l1)
         # orthogonal_init(self.l2)
         # orthogonal_init(self.l3)
         # Q2
-        self.l4 = nn.Linear(state_dim + action_dim, hidden_width)
-        self.l5 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
-        self.l6 = nn.Linear(hidden_width, 1)
+        self.l5 = nn.Linear(state_dim + action_dim, hidden_width)
+        self.l6 = nn.Linear(hidden_width, hidden_width)
+        self.l7 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
+        self.l8 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l4)
         # orthogonal_init(self.l5)
         # orthogonal_init(self.l6)
@@ -215,20 +273,35 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         else:
             return torch.zeros([1, 1, self.hidden_width]), torch.zeros([1, 1, self.hidden_width])
 
+    def atten(self, lstm_output, h_t):
+        h_t = h_t.permute(1, 2, 0)
+        attn_weights = torch.bmm(lstm_output, h_t)
+        attention = F.softmax(attn_weights, 1)
+        attn_out = torch.bmm(lstm_output.transpose(1, 2), attention)
+        attn_out = attn_out.permute(2, 0, 1)
+        return attn_out
+
+    def self_atten(self, x):
+        pass
+
     def forward(self, s, a, h_0_1, c_0_1, h_0_2, c_0_2):
         if not hasattr(self, '_flattened'):
-            self.l2.flatten_parameters()
-            self.l5.flatten_parameters()
+            self.l3.flatten_parameters()
+            self.l7.flatten_parameters()
             setattr(self, '_flattened', True)
         # s_a = torch.cat([s, a], 1)
         s_a = torch.cat([s, a], 2)
         q1 = F.relu(self.l1(s_a))
-        q1, (h_t_1, c_t_1) = self.l2(q1, (h_0_1, c_0_1))  # q1 = F.relu(self.l1(s_a))
-        q1 = self.l3(q1)
+        q1 = F.relu(self.l2(q1))
+        q1, (h_t_1, c_t_1) = self.l3(q1, (h_0_1, c_0_1))  # q1 = F.relu(self.l1(s_a))
+        h_t_1 = self.atten(q1, h_t_1)
+        q1 = self.l4(q1)
 
-        q2 = F.relu(self.l4(s_a))
-        q2, (h_t_2, c_t_2) = self.l5(q2, (h_0_2, c_0_2))   # q2 = F.relu(self.l4(s_a))
-        q2 = self.l6(q2)
+        q2 = F.relu(self.l5(s_a))
+        q2 = F.relu(self.l6(q2))
+        q2, (h_t_2, c_t_2) = self.l7(q2, (h_0_2, c_0_2))   # q2 = F.relu(self.l4(s_a))
+        h_t_2 = self.atten(q2, h_t_2)
+        q2 = self.l8(q2)
 
         return q1, q2, h_t_1, c_t_1, h_t_2, c_t_2
 
@@ -453,6 +526,6 @@ if __name__ == '__main__':
             total_steps += 1
         replay_buffer.put(episode_record)
         env.close()
-    agent.save(f"./model_train/SACLSTMATT/SACLSTMATT_{env_name}")
+    agent.save(f"./model_train/SACLSTM/SACLSTMATT_{env_name}")
     end_time = time.time()
     print(f"运行时间: {end_time - start_time}")

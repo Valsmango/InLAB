@@ -147,8 +147,8 @@ class Actor(nn.Module):
         self.max_action = max_action
         self.hidden_width = hidden_width
         self.l1 = nn.Linear(state_dim, hidden_width)
-        self.l2 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
-        # self.l2 = nn.Linear(hidden_width, hidden_width)
+        self.l2 = nn.Linear(hidden_width, hidden_width)
+        self.l3 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
         self.mean_layer = nn.Linear(hidden_width, action_dim)
         self.log_std_layer = nn.Linear(hidden_width, action_dim)
         # orthogonal_init(self.l1)
@@ -162,11 +162,11 @@ class Actor(nn.Module):
 
     def forward(self, x, h_0, c_0, deterministic=False, with_logprob=True):
         if not hasattr(self, '_flattened'):
-            self.l2.flatten_parameters()
+            self.l3.flatten_parameters()
             setattr(self, '_flattened', True)
         x = F.relu(self.l1(x))
-        x, (h_t, c_t) = self.l2(x, (h_0, c_0))
-        # x = F.relu(self.l2(x))
+        x = F.relu(self.l2(x))
+        x, (h_t, c_t) = self.l3(x, (h_0, c_0))
         mean = self.mean_layer(x)
         log_std = self.log_std_layer(x)  # We output the log_std to ensure that std=exp(log_std)>0
         log_std = torch.clamp(log_std, -20, 2)
@@ -195,17 +195,17 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         self.hidden_width = hidden_width
         # Q1
         self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
-        self.l2 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
-        # self.l2 = nn.Linear(hidden_width, hidden_width)
-        self.l3 = nn.Linear(hidden_width, 1)
+        self.l2 = nn.Linear(hidden_width, hidden_width)
+        self.l3 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
+        self.l4 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l1)
         # orthogonal_init(self.l2)
         # orthogonal_init(self.l3)
         # Q2
-        self.l4 = nn.Linear(state_dim + action_dim, hidden_width)
-        self.l5 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
-        # self.l5 = nn.Linear(hidden_width, hidden_width)
-        self.l6 = nn.Linear(hidden_width, 1)
+        self.l5 = nn.Linear(state_dim + action_dim, hidden_width)
+        self.l6 = nn.Linear(hidden_width, hidden_width)
+        self.l7 = nn.LSTM(hidden_width, hidden_width, batch_first=True)
+        self.l8 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l4)
         # orthogonal_init(self.l5)
         # orthogonal_init(self.l6)
@@ -221,20 +221,20 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
 
     def forward(self, s, a, h_0_1, c_0_1, h_0_2, c_0_2):
         if not hasattr(self, '_flattened'):
-            self.l2.flatten_parameters()
-            self.l5.flatten_parameters()
+            self.l3.flatten_parameters()
+            self.l7.flatten_parameters()
             setattr(self, '_flattened', True)
         # s_a = torch.cat([s, a], 1)
         s_a = torch.cat([s, a], 2)
         q1 = F.relu(self.l1(s_a))
-        q1, (h_t_1, c_t_1) = self.l2(q1, (h_0_1, c_0_1))  # q1 = F.relu(self.l1(s_a))
-        # q1 = F.relu(self.l2(q1))
-        q1 = self.l3(q1)
+        q1 = F.relu(self.l2(q1))
+        q1, (h_t_1, c_t_1) = self.l3(q1, (h_0_1, c_0_1))  # q1 = F.relu(self.l1(s_a))
+        q1 = self.l4(q1)
 
-        q2 = F.relu(self.l4(s_a))
-        q2, (h_t_2, c_t_2) = self.l5(q2, (h_0_2, c_0_2))   # q2 = F.relu(self.l4(s_a))
-        # q2 = F.relu(self.l5(q2))
-        q2 = self.l6(q2)
+        q2 = F.relu(self.l5(s_a))
+        q2 = F.relu(self.l6(q2))
+        q2, (h_t_2, c_t_2) = self.l7(q2, (h_0_2, c_0_2))   # q2 = F.relu(self.l4(s_a))
+        q2 = self.l8(q2)
 
         return q1, q2, h_t_1, c_t_1, h_t_2, c_t_2
 

@@ -41,6 +41,17 @@ class Actor(nn.Module):
         else:
             return torch.zeros([1, 1, self.hidden_width]), torch.zeros([1, 1, self.hidden_width])
 
+    def atten(self, lstm_output, h_t):
+        q = h_t.permute(1, 0, 2)  # 【batch，1，dim】
+        trans = torch.ones(h_t.shape[1], lstm_output.shape[1], h_t.shape[0]).to(device)  # 【batch，len，1】
+        q = torch.bmm(trans, q)  # 【batch，len, dim】
+        k = lstm_output.permute(0, 2, 1)
+        attn_weights = torch.bmm(q, k)
+        attention = F.softmax(attn_weights, 1)
+        v = lstm_output
+        attn_out = torch.bmm(attention, v)
+        return attn_out
+
     def forward(self, s, h_0, c_0):
         # https://blog.csdn.net/feifei3211/article/details/102998288?spm=1001.2101.3001.6661.1&utm_medium=distribute.pc_relevant_t0.none-task-blog-2~default~CTRLIST~Rate-1-102998288-blog-109586782.pc_relevant_3mothn_strategy_recovery&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-2~default~CTRLIST~Rate-1-102998288-blog-109586782.pc_relevant_3mothn_strategy_recovery&utm_relevant_index=1
         if not hasattr(self, '_flattened'):
@@ -49,6 +60,7 @@ class Actor(nn.Module):
         s = F.relu(self.l1(s))
         s = F.relu(self.l2(s))
         s, (h_t, c_t) = self.l3(s, (h_0, c_0))
+        # s = self.atten(s, h_t)
         a = self.max_action * torch.tanh(self.l4(s))  # [-max,max]
         return a, h_t, c_t
 
@@ -83,6 +95,17 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         else:
             return torch.zeros([1, 1, self.hidden_width]), torch.zeros([1, 1, self.hidden_width])
 
+    def atten(self, lstm_output, h_t):
+        q = h_t.permute(1, 0, 2)  # 【batch，1，dim】
+        trans = torch.ones(h_t.shape[1], lstm_output.shape[1], h_t.shape[0]).to(device)  # 【batch，len，1】
+        q = torch.bmm(trans, q)  # 【batch，len, dim】
+        k = lstm_output.permute(0, 2, 1)
+        attn_weights = torch.bmm(q, k)
+        attention = F.softmax(attn_weights, 1)
+        v = lstm_output
+        attn_out = torch.bmm(attention, v)
+        return attn_out
+
     def forward(self, s, a, h_0_1, c_0_1, h_0_2, c_0_2):
         if not hasattr(self, '_flattened'):
             self.l3.flatten_parameters()
@@ -93,11 +116,13 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
         q1, (h_t_1, c_t_1) = self.l3(q1, (h_0_1, c_0_1))  # q1 = F.relu(self.l1(s_a))
+        # q1 = self.atten(q1, h_t_1)
         q1 = self.l4(q1)
 
         q2 = F.relu(self.l5(s_a))
         q2 = F.relu(self.l6(q2))
         q2, (h_t_2, c_t_2) = self.l7(q2, (h_0_2, c_0_2))   # q2 = F.relu(self.l4(s_a))
+        # q2 = self.atten(q2, h_t_2)
         q2 = self.l8(q2)
 
         return q1, q2, h_t_1, c_t_1, h_t_2, c_t_2
@@ -111,6 +136,7 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
         q1, (h_t_1, c_t_1) = self.l3(q1, (h_0_1, c_0_1))  # q1 = F.relu(self.l1(s_a))
+        # q1 = self.atten(q1, h_t_1)
         q1 = self.l4(q1)
 
         return q1, h_t_1, c_t_1
@@ -410,8 +436,8 @@ if __name__ == '__main__':
 
     if not os.path.exists("./eval_reward_train"):
         os.makedirs("./eval_reward_train")
-    if not os.path.exists("./model_train/TD3LSTM"):
-        os.makedirs("./model_train/TD3LSTM")
+    if not os.path.exists("./model_train/TD3LSTMATT"):
+        os.makedirs("./model_train/TD3LSTMATT")
 
     while total_steps < max_train_steps:
         env = StandardEnv()
@@ -453,11 +479,11 @@ if __name__ == '__main__':
                 # writer.add_scalar('step_rewards_{}'.format(env_name), evaluate_reward, global_step=total_steps)
                 # Save the rewards
                 if evaluate_num % 10 == 0:
-                    np.save('./eval_reward_train/TD3LSTM_env_{}_seed_{}.npy'.format(env_name, seed), np.array(evaluate_rewards))
+                    np.save('./eval_reward_train/TD3LSTMATT_env_{}_seed_{}.npy'.format(env_name, seed), np.array(evaluate_rewards))
 
             total_steps += 1
         replay_buffer.put(episode_record)
         env.close()
-    agent.save(f"./model_train/TD3LSTM/TD3LSTM_{env_name}")
+    agent.save(f"./model_train/TD3LSTMATT/TD3LSTMATT_{env_name}")
     end_time = time.time()
     print(f"运行时间: {end_time - start_time}")

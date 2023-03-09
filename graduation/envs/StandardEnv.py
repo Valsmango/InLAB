@@ -55,10 +55,10 @@ class StandardEnv(object):
         self.path = []
         self.path.append([self.uav_state[0][0], self.uav_state[0][1], self.uav_state[0][2]])
         # 【x，y，z，v_x，v_y，v_z，tar_x，tar_y，tar_z，obs_x，obs_y，obs_z】
-        return_state = [np.array(self.uav_state[0]) / np.array([5000.0, 5000.0, 300.0,
+        return_state = np.array(self.uav_state[0]) / np.array([5000.0, 5000.0, 300.0,
                                                             200.0, 200.0, 10.0,
                                                             5000.0, 5000.0, 300.0,
-                                                            5000.0, 5000.0, 300.0])]
+                                                            5000.0, 5000.0, 300.0])
         return torch.Tensor(return_state)
 
     def step(self, input_action):
@@ -163,10 +163,10 @@ class StandardEnv(object):
         elif len(self.path) > self._max_episode_steps:
             done = True
 
-        return_state = [np.array(self.uav_state[0]) / np.array([5000.0, 5000.0, 300.0,
+        return_state = np.array(self.uav_state[0]) / np.array([5000.0, 5000.0, 300.0,
                                              200.0, 200.0, 10.0,
                                              5000.0, 5000.0, 300.0,
-                                             5000.0, 5000.0, 300.0])]
+                                             5000.0, 5000.0, 300.0])
         return torch.Tensor(return_state), reward, done
 
     def render(self):
@@ -176,9 +176,9 @@ class StandardEnv(object):
 
     def sample_action(self):
         # # Mean
-        random_delta_v_x = np.random.rand()
-        random_delta_v_y = np.random.rand()
-        random_delta_v_z = np.random.rand()
+        random_delta_v_x = np.random.rand() * 2 - 1
+        random_delta_v_y = np.random.rand() * 2 - 1
+        random_delta_v_z = np.random.rand() * 2 - 1
         return torch.Tensor([random_delta_v_x, random_delta_v_y, random_delta_v_z])
 
     def seed(self, seed=None):
@@ -467,12 +467,14 @@ if __name__ == "__main__":
         s, r, done = env.step(action)
         print(f"currently, the {i + 1} step:\n"
               f"           Action: speed {action[0]*5.0, action[1]*5.0, action[2]*0.5}\n"
-              f"           State: pos {s[0][0]*5000.0, s[0][1]*5000.0, s[0][2]*300.0};   speed {s[0][3]*200, s[0][4]*200.0, s[0][5]*10}\n"
+              f"           State: pos {s[0]*5000.0, s[1]*5000.0, s[2]*300.0};   speed {s[3]*200, s[4]*200.0, s[5]*10}\n"
               f"           Reward:{r}\n")
 
         if done:
             env.show_path()
             break
+
+    env.close()
 
     # ax = plt.axes(projection='3d')
     # x = np.zeros([500, 500])

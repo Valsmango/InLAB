@@ -5,6 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FuncFormatter
 import torch
 from rl_plotter.logger import Logger
+import torch.nn.functional as F
 
 
 def create_map():
@@ -29,12 +30,13 @@ def create_map():
         v_y_i = np.random.rand() * 25
         v_z_i = np.random.rand() * 3 - 1.5
         dynamic_obs_info.append({'x': x_i, 'y': y_i, 'z': z_i,
-                                'v_x': v_x_i, 'v_y': v_y_i, 'v_z': v_z_i})
+                                 'v_x': v_x_i, 'v_y': v_y_i, 'v_z': v_z_i})
     map = np.concatenate((static_obs_info, dynamic_obs_info), axis=0)
     print(static_obs_info)
     print(dynamic_obs_info)
     # print(map)
     return static_obs_info, dynamic_obs_info
+
 
 def plot_test():
     map = create_map()
@@ -70,11 +72,25 @@ def save_to_file(data, file_name):
     # https://www.cnblogs.com/tester-hqser/p/16202786.html
     pass
 
+
 def test_rl_plotter():
     # logger = Logger(exp_name="your_exp_name", env_name, seed, locals())
     # ......
     # logger.update(score=评估得分(list), total_steps=当前训练步数)
     pass
+
+
+def atten(lstm_output, h_t):
+    q = h_t.permute(1, 0, 2)  # 【batch，1，dim】
+    trans = torch.ones(h_t.shape[1], lstm_output.shape[1], h_t.shape[0])  # 【batch，len，1】
+    q = torch.bmm(trans, q)  # 【batch，len, dim】
+    k = lstm_output.permute(0, 2, 1)
+    attn_weights = torch.bmm(q, k)
+    attention = F.softmax(attn_weights, 1)
+    v = lstm_output
+    attn_out = torch.bmm(attention, v)
+    return attn_out
+
 
 if __name__ == "__main__":
     # static_obs_info, dynamic_obs_info = create_map() # 测试
@@ -87,5 +103,8 @@ if __name__ == "__main__":
     # np.random.seed(0)
     # # print(np.random.normal(loc=0, scale=0.01, size=3)) # [0.01764052 0.00400157 0.00978738]
     # print(np.random.normal(size=3)*0.01)
-    array = np.array([1,2,3,4,5,6])
-    print(array[-6:0])
+
+    # [1, 6, 3]
+    x = torch.tensor([[[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18]]])
+    h = torch.tensor([[[1, 2, 1]]])
+    print(atten(x, h))

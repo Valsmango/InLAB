@@ -28,27 +28,27 @@ class SingleContinuousEnv(object):
 
     def randomly_choose_env(self):
         # randomly choose an env
-        # self.model = SingleContinuousEnv0(self._max_episode_steps,
-        #                                   init_start=[{'x': 0, 'y': 0, 'z': 150,
-        #                                                'v_x': 100, 'v_y': 100, 'v_z': 0,
-        #                                                'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
-        #                                                'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-        #                                   init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
+        self.model = SingleContinuousEnv0(self._max_episode_steps,
+                                          init_start=[{'x': 0, 'y': 0, 'z': 150,
+                                                       'v_x': 100, 'v_y': 100, 'v_z': 0,
+                                                       'tar_x': 5000, 'tar_y': 5000, 'tar_z': 150,
+                                                       'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
+                                          init_target=[{'x': 5000, 'y': 5000, 'z': 150}])
         # self.env_id = -1
 
         # 随机起点和终点
-        x = np.random.rand() * 300  # 避免一步就无了
-        y = np.random.rand() * 5000
-        z = np.random.rand() * 200 + 50
-        tar_x = np.random.rand() * 300 + 4700
-        tar_y = np.random.rand() * 5000
-        tar_z = np.random.rand() * 200 + 50
-        self.model = SingleContinuousEnv0(self._max_episode_steps,
-                                          init_start=[{'x': x, 'y': y, 'z': z,
-                                                       'v_x': (tar_x - x) / 50, 'v_y': (tar_y - y) / 50, 'v_z': (tar_z - z) / 50,
-                                                       'tar_x': tar_x, 'tar_y': tar_y, 'tar_z': tar_z,
-                                                       'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
-                                          init_target=[{'x': tar_x, 'y': tar_y, 'z': tar_z}])
+        # x = np.random.rand() * 300  # 避免一步就无了
+        # y = np.random.rand() * 5000
+        # z = np.random.rand() * 200 + 50
+        # tar_x = np.random.rand() * 300 + 4700
+        # tar_y = np.random.rand() * 5000
+        # tar_z = np.random.rand() * 200 + 50
+        # self.model = SingleContinuousEnv0(self._max_episode_steps,
+        #                                   init_start=[{'x': x, 'y': y, 'z': z,
+        #                                                'v_x': (tar_x - x) / 50, 'v_y': (tar_y - y) / 50, 'v_z': (tar_z - z) / 50,
+        #                                                'tar_x': tar_x, 'tar_y': tar_y, 'tar_z': tar_z,
+        #                                                'obs_x': 0, 'obs_y': 0, 'obs_z': 0}],
+        #                                   init_target=[{'x': tar_x, 'y': tar_y, 'z': tar_z}])
 
         # 四种环境
         # tmp = np.random.rand()
