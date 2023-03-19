@@ -62,11 +62,15 @@ if __name__ == "__main__":
     # tt = [tar[agent_i][index] for agent_i in range(3)]
     # tt = torch.tensor(tt, dtype=torch.float)
     # print(tt)
-    r = 2500
-    alpha2 = np.random.rand() * 2 * np.pi
-    x2 = np.cos(alpha2) * r + 2500
-    y2 = np.sin(alpha2) * r + 2500
-    z2 = np.random.rand() * 300
-    print(f"x:{x2}  y:{y2}  z:{z2}")
-    dis = np.sqrt((x2-2500) ** 2 + (y2-2500) ** 2)
-    print(dis)
+    # r = 2500
+    # alpha2 = np.random.rand() * 2 * np.pi
+    # x2 = np.cos(alpha2) * r + 2500
+    # y2 = np.sin(alpha2) * r + 2500
+    # z2 = np.random.rand() * 300
+    # print(f"x:{x2}  y:{y2}  z:{z2}")
+    # dis = np.sqrt((x2-2500) ** 2 + (y2-2500) ** 2)
+    # print(dis)
+    # state = [torch.Tensor([[1,2,3,4], [5,6,7,8]]),torch.Tensor([[10,20,30,40], [50,60,70,80]])]
+    # s = torch.cat(state, dim=1)
+    s=float(True)
+    print(s)

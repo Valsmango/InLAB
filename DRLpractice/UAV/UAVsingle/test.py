@@ -37,6 +37,39 @@ def create_map():
     # print(map)
     return static_obs_info, dynamic_obs_info
 
+def create_circle_map():
+    static_obstacle_num = 10
+    dynamic_obstacle_num = 5
+    static_obs_info = []
+    dynamic_obs_info = []
+    for i in range(static_obstacle_num):
+        r_i = np.random.rand() * 2000
+        alpha_i = np.random.rand() * 2 * np.pi
+        x_i = np.cos(alpha_i) * r_i + 2500
+        y_i = np.sin(alpha_i) * r_i + 2500
+        z_i = np.random.rand() * 300
+        v_x_i = 0.
+        v_y_i = 0.
+        v_z_i = 0.
+        static_obs_info.append({'x': x_i, 'y': y_i, 'z': z_i,
+                                'v_x': v_x_i, 'v_y': v_y_i, 'v_z': v_z_i})
+    for i in range(dynamic_obstacle_num):
+        r_i = np.random.rand() * 2000
+        alpha_i = np.random.rand() * 2 * np.pi
+        x_i = np.cos(alpha_i) * r_i + 2500
+        y_i = np.sin(alpha_i) * r_i + 2500
+        z_i = np.random.rand() * 300
+        v_x_i = np.random.rand() * 40 - 20
+        v_y_i = np.random.rand() * 40 - 20
+        v_z_i = np.random.rand() * 3 - 1.5
+        dynamic_obs_info.append({'x': x_i, 'y': y_i, 'z': z_i,
+                                 'v_x': v_x_i, 'v_y': v_y_i, 'v_z': v_z_i})
+    map = np.concatenate((static_obs_info, dynamic_obs_info), axis=0)
+    print(static_obs_info)
+    print(dynamic_obs_info)
+    # print(map)
+    return static_obs_info, dynamic_obs_info
+
 
 def plot_test():
     map = create_map()
@@ -105,6 +138,8 @@ if __name__ == "__main__":
     # print(np.random.normal(size=3)*0.01)
 
     # [1, 6, 3]
-    x = torch.tensor([[[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18]]])
-    h = torch.tensor([[[1, 2, 1]]])
-    print(atten(x, h))
+    # x = torch.tensor([[[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18]]])
+    # h = torch.tensor([[[1, 2, 1]]])
+    # print(atten(x, h))
+
+    create_circle_map()

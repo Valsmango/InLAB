@@ -197,27 +197,85 @@ class StandardEnv(object):
 
     def plot_reward(self, x, y, z=150):
         reward = 0.0
-        static_obs_dis = [np.sqrt(
+        # static_obs_dis = [np.sqrt(
+        #     (self.static_obs_state[i]['x'] - x) ** 2 +
+        #     (self.static_obs_state[i]['y'] - y) ** 2 +
+        #     (self.static_obs_state[i]['z'] - z) ** 2) for i in range(len(self.static_obs_state))]
+        # dynamic_obs_dis = [np.sqrt(
+        #     (self.dynamic_obs_state[i]['x'] - x) ** 2 +
+        #     (self.dynamic_obs_state[i]['y'] - y) ** 2 +
+        #     (self.dynamic_obs_state[i]['z'] - z) ** 2) for i in range(len(self.dynamic_obs_state))]
+        # tar_dis = np.sqrt((x - self.target[0][0]) ** 2 +
+        #                   (y - self.target[0][1]) ** 2 +
+        #                   (z - self.target[0][2]) ** 2)
+        #
+        # urep_static = np.where(np.array(static_obs_dis) < self.min_range,
+        #                        - 1 / 2 * self.rep * (1 / np.array(static_obs_dis) - 1 / self.min_range), 0)
+        # urep_dynamic = np.where(np.array(dynamic_obs_dis) < self.min_range,
+        #                         - 1 / 2 * self.rep * (1 / np.array(dynamic_obs_dis) - 1 / self.min_range), 0)
+        # uatt = - self.att * tar_dis
+        # reward += 0.0025*sum(urep_static) + 0.0025*sum(urep_dynamic)
+        # reward += 0.0025 * uatt
+
+        static_obs_dis_hori = [np.sqrt(
             (self.static_obs_state[i]['x'] - x) ** 2 +
-            (self.static_obs_state[i]['y'] - y) ** 2 +
-            (self.static_obs_state[i]['z'] - z) ** 2) for i in range(len(self.static_obs_state))]
-        dynamic_obs_dis = [np.sqrt(
+            (self.static_obs_state[i]['y'] - y) ** 2) for i in range(len(self.static_obs_state))]
+        static_obs_dis_vert = [np.abs(self.static_obs_state[i]['z'] - z) for i in range(len(self.static_obs_state))]
+        dynamic_obs_dis_hori = [np.sqrt(
             (self.dynamic_obs_state[i]['x'] - x) ** 2 +
-            (self.dynamic_obs_state[i]['y'] - y) ** 2 +
-            (self.dynamic_obs_state[i]['z'] - z) ** 2) for i in range(len(self.dynamic_obs_state))]
-        tar_dis = np.sqrt((x - self.target[0][0]) ** 2 +
-                          (y - self.target[0][1]) ** 2 +
-                          (z - self.target[0][2]) ** 2)
-
-        urep_static = np.where(np.array(static_obs_dis) < self.min_range,
-                               - 1 / 2 * self.rep * (1 / np.array(static_obs_dis) - 1 / self.min_range), 0)
-        urep_dynamic = np.where(np.array(dynamic_obs_dis) < self.min_range,
-                                - 1 / 2 * self.rep * (1 / np.array(dynamic_obs_dis) - 1 / self.min_range), 0)
-        uatt = - self.att * tar_dis
-        reward += 0.00125*sum(urep_static) + 0.00125*sum(urep_dynamic)
-        reward += 0.0025 * uatt
-
+            (self.dynamic_obs_state[i]['y'] - y) ** 2) for i in range(len(self.dynamic_obs_state))]
+        dynamic_obs_dis_vert = [np.abs(self.dynamic_obs_state[i]['z'] - z) for i in range(len(self.dynamic_obs_state))]
+        urep_static = np.where(np.array(static_obs_dis_hori) < self.min_range,
+                               - np.exp(- np.array(static_obs_dis_hori) / 100), 0)
+        urep_dynamic = np.where(np.array(dynamic_obs_dis_hori) < self.min_range,
+                                - np.exp(- np.array(dynamic_obs_dis_hori) / 100), 0)
+        reward += 1*(sum(urep_static) + sum(urep_dynamic))
+        tar_dis_hori = np.sqrt((x - self.target[0][0]) ** 2 + (y - self.target[0][1]) ** 2)
+        tar_dis_vert = np.abs(z - self.target[0][2])
+        uatt = np.exp(tar_dis_hori / 2000)
+        # reward += uatt
         return reward
+
+    def plot_env(self):
+        ax = plt.axes(projection='3d')
+
+        static_obs_len = len(self.static_obs_state)
+        static_xscatter = [self.static_obs_state[i]['x'] / 1000 for i in range(static_obs_len)]
+        static_yscatter = [self.static_obs_state[i]['y'] / 1000 for i in range(static_obs_len)]
+        static_zscatter = [self.static_obs_state[i]['z'] / 1000 for i in range(static_obs_len)]
+        ax.scatter(static_xscatter, static_yscatter, static_zscatter, label='static obstacle', c='black', alpha=0.7)
+
+        dynamic_obs_len = len(self.dynamic_obs_init_state)
+        dynamic_xscatter = [self.dynamic_obs_init_state[i]['x'] / 1000 for i in range(dynamic_obs_len)]
+        dynamic_yscatter = [self.dynamic_obs_init_state[i]['y'] / 1000 for i in range(dynamic_obs_len)]
+        dynamic_zscatter = [self.dynamic_obs_init_state[i]['z'] / 1000 for i in range(dynamic_obs_len)]
+        # ax.scatter(dynamic_xscatter, dynamic_yscatter, dynamic_zscatter, c='r', alpha=0.3)
+
+        dynamic_obs_cur_len = len(self.dynamic_obs_state)
+        dynamic_xscatter_cur = [self.dynamic_obs_state[i]['x'] / 1000 for i in range(dynamic_obs_cur_len)]
+        dynamic_yscatter_cur = [self.dynamic_obs_state[i]['y'] / 1000 for i in range(dynamic_obs_cur_len)]
+        dynamic_zscatter_cur = [self.dynamic_obs_state[i]['z'] / 1000 for i in range(dynamic_obs_cur_len)]
+        ax.scatter(dynamic_xscatter_cur, dynamic_yscatter_cur, dynamic_zscatter_cur, label='dynamic obstacle',
+                   c='r', alpha=0.7)
+
+        for k in range(dynamic_obs_len):
+            ax.plot3D([dynamic_xscatter_cur[k], dynamic_xscatter[k]],
+                      [dynamic_yscatter_cur[k], dynamic_yscatter[k]],
+                      [dynamic_zscatter_cur[k], dynamic_zscatter[k]],
+                      alpha=0.3, c='r', linestyle=':')
+
+        ax.set_title("3D path")
+        ax.set_xlabel("x (km)")
+        ax.set_ylabel("y (km)")
+        ax.set_zlabel("z (km)")
+        ax.set_xlim(0, 5)
+        ax.xaxis.set_major_locator(MultipleLocator(1))
+        ax.set_ylim(0, 5)
+        ax.yaxis.set_major_locator(MultipleLocator(1))
+        ax.set_zlim(0, 0.3)
+        ax.zaxis.set_major_locator(MultipleLocator(0.05))
+        ax.legend()
+        plt.show()
 
     def _init_map(self, init_start, init_target):
         self.target = init_target
@@ -460,21 +518,21 @@ if __name__ == "__main__":
     env = StandardEnv()
     init_state = env.reset()
 
-    for i in range(50):
-        env.render()
-        time.sleep(0.1)
-        action = env.sample_action()
-        s, r, done = env.step(action)
-        print(f"currently, the {i + 1} step:\n"
-              f"           Action: speed {action[0]*5.0, action[1]*5.0, action[2]*0.5}\n"
-              f"           State: pos {s[0]*5000.0, s[1]*5000.0, s[2]*300.0};   speed {s[3]*200, s[4]*200.0, s[5]*10}\n"
-              f"           Reward:{r}\n")
-
-        if done:
-            env.show_path()
-            break
-
-    env.close()
+    # for i in range(50):
+    #     env.render()
+    #     time.sleep(0.1)
+    #     action = env.sample_action()
+    #     s, r, done = env.step(action)
+    #     print(f"currently, the {i + 1} step:\n"
+    #           f"           Action: speed {action[0]*5.0, action[1]*5.0, action[2]*0.5}\n"
+    #           f"           State: pos {s[0]*5000.0, s[1]*5000.0, s[2]*300.0};   speed {s[3]*200, s[4]*200.0, s[5]*10}\n"
+    #           f"           Reward:{r}\n")
+    #
+    #     if done:
+    #         env.show_path()
+    #         break
+    #
+    # env.close()
 
     # ax = plt.axes(projection='3d')
     # x = np.zeros([500, 500])
@@ -495,3 +553,6 @@ if __name__ == "__main__":
     # ct = plt.contour(X, Y, Z, 100)
     # plt.clabel(ct, inline=True)
     # plt.show()
+
+    env=StandardEnv()
+    env.plot_env()

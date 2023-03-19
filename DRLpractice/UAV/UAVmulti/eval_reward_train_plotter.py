@@ -28,6 +28,7 @@ def avg_eval_result_plot(rewards, eval_frequent):
 
 
 def all_eval_result_plot(rewards, eval_frequent):
+    # 输入的rewards为【40，200】，转换为【200，40】，key为eval_times，value为rewards
     rewards = np.transpose(rewards)
     df = pd.DataFrame(rewards).melt(var_name="eval_times", value_name="rewards")
     sns.lineplot(x="eval_times", y="rewards", data=df)
@@ -37,16 +38,80 @@ def all_eval_result_plot(rewards, eval_frequent):
     plt.show()
 
 
-def training_rewards_plot(rewards, max_training_steps):
-    pass
+def training_rewards_plot(rewards):
+    plt.plot(rewards)
+    plt.ylabel('Episode Reward')
+    plt.xlabel(f'Episodes')
+    plt.title('Training')
+    plt.show()
+
+def training_ma_rewards_plot(rewards):
+    plt.plot(rewards)
+    plt.ylabel('Episode Reward(Moving Average)')
+    # plt.ylabel('平均回合奖励')
+    plt.xlabel(f'Episodes')
+    plt.title('Training')
+    plt.show()
 
 
 if __name__ == "__main__":
 
-    ####################################  载入MADDPG  ##########################################
-    policy_name = "MADDPG"
+    # # ####################################  载入MADDPG  ##########################################
+    # policy_name = "MADDPG"
+    # env_name = "MAStandardEnv"
+    # seed_num = 10
+    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    # #########
+    # # avg_rewards = np.load(f"./eval_reward_train/MADDPG/{file_name}.npy")
+    # # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    # #########
+    # # training_rewards = np.load(f"./eval_reward_train/MADDPG/train_reward_{file_name}.npy")
+    # # training_rewards_plot(training_rewards)
+    # #########
+    # training_ma_rewards = np.load(f"./eval_reward_train/MADDPG/train_ma_reward_{file_name}.npy")
+    # training_ma_rewards_plot(training_ma_rewards)
+
+    ####################################  载入MATD3  ##########################################
+    policy_name = "MATD3"
     env_name = "MAStandardEnv"
     seed_num = 10
     file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
-    avg_rewards = np.load(f"./eval_reward_train/MADDPG/{file_name}.npy")
-    avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    #########
+    # avg_rewards = np.load(f"./eval_reward_train/MATD3/{file_name}.npy")
+    # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    ########
+    training_rewards = np.load(f"./eval_reward_train/MATD3/train_reward_{file_name}.npy")
+    training_rewards_plot(training_rewards)
+    #########
+    training_ma_rewards = np.load(f"./eval_reward_train/MATD3/train_ma_reward_{file_name}.npy")
+    training_ma_rewards_plot(training_ma_rewards)
+
+    # ####################################  载入TD3  ##########################################
+    # policy_name = "TD3"
+    # env_name = "MAStandardEnv"
+    # seed_num = 10
+    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    # #########
+    # # avg_rewards = np.load(f"./eval_reward_train/TD3/{file_name}.npy")
+    # # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    # #########
+    # training_rewards = np.load(f"./eval_reward_train/TD3/train_reward_{file_name}.npy")
+    # training_rewards_plot(training_rewards)
+    # #########
+    # training_ma_rewards = np.load(f"./eval_reward_train/TD3/train_ma_reward_{file_name}.npy")
+    # training_ma_rewards_plot(training_ma_rewards)
+
+    # ####################################  载入SAC  ##########################################
+    # policy_name = "SAC"
+    # env_name = "MAStandardEnv"
+    # seed_num = 10
+    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    # #########
+    # # avg_rewards = np.load(f"./eval_reward_train/SAC/{file_name}.npy")
+    # # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    # #########
+    # training_rewards = np.load(f"./eval_reward_train/SAC/train_reward_{file_name}.npy")
+    # training_rewards_plot(training_rewards)
+    # #########
+    # training_ma_rewards = np.load(f"./eval_reward_train/SAC/train_ma_reward_{file_name}.npy")
+    # training_ma_rewards_plot(training_ma_rewards)
