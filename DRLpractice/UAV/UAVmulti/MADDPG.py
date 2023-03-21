@@ -76,10 +76,12 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
-
+        self.n_agents = 2
+        self.input_dim = self.n_agents*(state_dim + action_dim)
         # self.l1 = nn.Linear(state_dim, 256)
         # self.l2 = nn.Linear(256 + action_dim, 256)
-        self.l1 = nn.Linear(state_dim + action_dim, 256)
+        self.l1 = nn.Linear(self.input_dim, 256)
+        # self.l1 = nn.Linear(state_dim + action_dim, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, 1)
         # orthogonal_init(self.l1)
@@ -87,9 +89,11 @@ class Critic(nn.Module):
         # orthogonal_init(self.l3)
 
     def forward(self, state, action):
+        # 输入：【agent，batch，dim】 -- > cat之后【agent，batch，s+a的dim】
         # q = F.relu(self.l1(state))
         # q = F.relu(self.l2(torch.cat([q, action], dim=2)))
-        q = F.relu(self.l1(torch.cat([state, action], dim=2)))
+        x = torch.cat([state, action], dim=2).view(-1, self.input_dim)
+        q = F.relu(self.l1(x))
         q = F.relu(self.l2(q))
         return self.l3(q)
 
@@ -199,9 +203,9 @@ class MADDPG(object):
                                          for pi, nobs in zip(self.actor_targets, next_obs)]).to(device)  # [2,64,3]
             all_trgt_Q = (rews[agent_i].view(-1, 1) + self.gamma *
                           self.common_critic(next_obs, all_trgt_acs) *
-                          (1 - dones[agent_i].view(-1, 1)))  # tensor([2,64,1])
+                          (1 - dones[agent_i].view(-1, 1)))  # reward和dones-->view:[64,1], 而next_obs和acs为tensor([2,64,1])
         # Compute the current Q and the critic loss
-        current_Q = self.common_critic(obs, acs)  # tensor([2,64,1])
+        current_Q = self.common_critic(obs, acs)  # obs和acs为tensor([2,64,1])
         critic_loss = self.MseLoss(current_Q, all_trgt_Q)
         # Optimize the critic
         self.common_critic_optimizer.zero_grad()
@@ -275,107 +279,6 @@ class MADDPG(object):
         self.common_critic_optimizer.load_state_dict(critic_params['critic_optimizer'])
 
 
-class MADDPGReplayBuffer(object):
-    def __init__(self, n_agents, state_dim, action_dim, max_size):
-        self.n_agents = n_agents
-        self.max_size = max_size
-        self.ptr = [0 for _ in range(self.n_agents)]
-        self.size = [0 for _ in range(self.n_agents)]
-
-        self.observations = []
-        self.actions = []
-        self.next_observations = []
-        self.rewards = []
-        self.dones = []
-
-        for i in range(n_agents):
-            self.observations.append(np.zeros([max_size, state_dim]))
-            self.actions.append(np.zeros([max_size, action_dim]))
-            self.next_observations.append(np.zeros([max_size, state_dim]))
-            self.rewards.append(np.zeros([max_size, 1]))
-            self.dones.append(np.zeros([max_size, 1]))
-
-        self.fail_ptr = [0 for _ in range(self.n_agents)]
-        self.fail_size = [0 for _ in range(self.n_agents)]
-        self.fail_max_size = int(max_size * 0.1)
-        self.fail_observations = []
-        self.fail_actions = []
-        self.fail_next_observations = []
-        self.fail_rewards = []
-        self.fail_dones = []
-        for i in range(n_agents):
-            self.fail_observations.append(np.zeros([self.fail_max_size, state_dim]))
-            self.fail_actions.append(np.zeros([self.fail_max_size, action_dim]))
-            self.fail_next_observations.append(np.zeros([self.fail_max_size, state_dim]))
-            self.fail_rewards.append(np.zeros([self.fail_max_size, 1]))
-            self.fail_dones.append(np.zeros([self.fail_max_size, 1]))
-
-    def add(self, observations, actions, next_observations, rewards, dones, flags):
-        # 存入数据的格式：torch.tensor([n_agents, dim])
-        for agent_i in range(self.n_agents):
-            if flags[agent_i]:
-                self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
-                self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
-                self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
-                self.rewards[agent_i][self.ptr] = rewards[agent_i]
-                self.dones[agent_i][self.ptr] = dones[agent_i]
-
-                self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
-                self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
-
-                if dones[agent_i]:  # 不完全是fail，也有可能是成功的
-                    self.fail_observations[agent_i][self.fail_ptr] = np.stack(observations[agent_i, :])
-                    self.fail_actions[agent_i][self.fail_ptr] = np.stack(actions[agent_i, :])
-                    self.fail_next_observations[agent_i][self.fail_ptr] = np.stack(next_observations[agent_i, :])
-                    self.fail_rewards[agent_i][self.fail_ptr] = rewards[agent_i]
-                    self.fail_dones[agent_i][self.fail_ptr] = dones[agent_i]
-                    self.fail_ptr[agent_i] = (self.fail_ptr[agent_i] + 1) % self.fail_max_size
-                    self.fail_size[agent_i] = min(self.fail_size[agent_i] + 1, self.fail_max_size)
-
-    def sample(self, batch_size):
-        sample_size = int(batch_size * 0.9)
-        size = self.max_size
-        for agent_i in range(self.n_agents):
-            size = min(size, self.ptr[agent_i])
-        index = np.random.choice(size, size=sample_size)  # Randomly sampling
-        batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_r = torch.tensor([self.rewards[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_next_obs = torch.tensor([self.next_observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_dw = torch.tensor([self.dones[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
-
-        fail_size = self.fail_max_size
-        for agent_i in range(self.n_agents):
-            fail_size = min(size, self.fail_ptr[agent_i])
-        fail_index = np.random.choice(fail_size, size=batch_size-sample_size)  # Randomly sampling
-        batch_fail_obs = torch.tensor([self.fail_observations[agent_i][fail_index]
-                                       for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_fail_a = torch.tensor([self.fail_actions[agent_i][fail_index] for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_fail_r = torch.tensor([self.fail_rewards[agent_i][fail_index] for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_fail_next_obs = torch.tensor([self.fail_next_observations[agent_i][fail_index]
-                                            for agent_i in range(self.n_agents)], dtype=torch.float)
-        batch_fail_dw = torch.tensor([self.fail_dones[agent_i][fail_index] for agent_i in range(self.n_agents)], dtype=torch.float)
-
-        batch_obs = torch.cat((batch_obs, batch_fail_obs), dim=1).to(device)
-        batch_a = torch.cat((batch_a, batch_fail_a), dim=1).to(device)
-        batch_r = torch.cat((batch_r, batch_fail_r), dim=1).to(device)
-        batch_next_obs = torch.cat((batch_next_obs, batch_fail_next_obs), dim=1).to(device)
-        batch_dw = torch.cat((batch_dw, batch_fail_dw), dim=1).to(device)
-
-        # 返回之前先转换成tensor
-        # batch_obs = torch.tensor(batch_obs, dtype=torch.float).to(device)
-        # batch_a = torch.tensor(batch_a, dtype=torch.float).to(device)
-        # batch_r = torch.tensor(batch_r, dtype=torch.float).to(device)
-        # batch_next_obs = torch.tensor(batch_next_obs, dtype=torch.float).to(device)
-        # batch_dw = torch.tensor(batch_dw, dtype=torch.float).to(device)
-
-        return batch_obs, batch_a, batch_r, batch_next_obs, batch_dw
-
-    def __len__(self) -> int:
-        return self.size
-
-
-# 普通的buffer
 # class MADDPGReplayBuffer(object):
 #     def __init__(self, n_agents, state_dim, action_dim, max_size):
 #         self.n_agents = n_agents
@@ -396,6 +299,21 @@ class MADDPGReplayBuffer(object):
 #             self.rewards.append(np.zeros([max_size, 1]))
 #             self.dones.append(np.zeros([max_size, 1]))
 #
+#         self.fail_ptr = [0 for _ in range(self.n_agents)]
+#         self.fail_size = [0 for _ in range(self.n_agents)]
+#         self.fail_max_size = int(max_size * 0.1)
+#         self.fail_observations = []
+#         self.fail_actions = []
+#         self.fail_next_observations = []
+#         self.fail_rewards = []
+#         self.fail_dones = []
+#         for i in range(n_agents):
+#             self.fail_observations.append(np.zeros([self.fail_max_size, state_dim]))
+#             self.fail_actions.append(np.zeros([self.fail_max_size, action_dim]))
+#             self.fail_next_observations.append(np.zeros([self.fail_max_size, state_dim]))
+#             self.fail_rewards.append(np.zeros([self.fail_max_size, 1]))
+#             self.fail_dones.append(np.zeros([self.fail_max_size, 1]))
+#
 #     def add(self, observations, actions, next_observations, rewards, dones, flags):
 #         # 存入数据的格式：torch.tensor([n_agents, dim])
 #         for agent_i in range(self.n_agents):
@@ -409,21 +327,117 @@ class MADDPGReplayBuffer(object):
 #                 self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
 #                 self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
 #
+#                 if dones[agent_i]:  # 不完全是fail，也有可能是成功的
+#                     self.fail_observations[agent_i][self.fail_ptr] = np.stack(observations[agent_i, :])
+#                     self.fail_actions[agent_i][self.fail_ptr] = np.stack(actions[agent_i, :])
+#                     self.fail_next_observations[agent_i][self.fail_ptr] = np.stack(next_observations[agent_i, :])
+#                     self.fail_rewards[agent_i][self.fail_ptr] = rewards[agent_i]
+#                     self.fail_dones[agent_i][self.fail_ptr] = dones[agent_i]
+#                     self.fail_ptr[agent_i] = (self.fail_ptr[agent_i] + 1) % self.fail_max_size
+#                     self.fail_size[agent_i] = min(self.fail_size[agent_i] + 1, self.fail_max_size)
+#
 #     def sample(self, batch_size):
+#         sample_size = int(batch_size * 0.9)
 #         size = self.max_size
 #         for agent_i in range(self.n_agents):
 #             size = min(size, self.ptr[agent_i])
-#         index = np.random.choice(size, size=batch_size)  # Randomly sampling
-#         batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
-#         batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
-#         batch_r = torch.tensor([self.rewards[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
-#         batch_next_obs = torch.tensor([self.next_observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
-#         batch_dw = torch.tensor([self.dones[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
+#         index = np.random.choice(size, size=sample_size)  # Randomly sampling
+#         batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_r = torch.tensor([self.rewards[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_next_obs = torch.tensor([self.next_observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_dw = torch.tensor([self.dones[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#
+#         fail_size = self.fail_max_size
+#         for agent_i in range(self.n_agents):
+#             fail_size = min(size, self.fail_ptr[agent_i])
+#         fail_index = np.random.choice(fail_size, size=batch_size-sample_size)  # Randomly sampling
+#         batch_fail_obs = torch.tensor([self.fail_observations[agent_i][fail_index]
+#                                        for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_fail_a = torch.tensor([self.fail_actions[agent_i][fail_index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_fail_r = torch.tensor([self.fail_rewards[agent_i][fail_index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_fail_next_obs = torch.tensor([self.fail_next_observations[agent_i][fail_index]
+#                                             for agent_i in range(self.n_agents)], dtype=torch.float)
+#         batch_fail_dw = torch.tensor([self.fail_dones[agent_i][fail_index] for agent_i in range(self.n_agents)], dtype=torch.float)
+#
+#         batch_obs = torch.cat((batch_obs, batch_fail_obs), dim=1).to(device)
+#         batch_a = torch.cat((batch_a, batch_fail_a), dim=1).to(device)
+#         batch_r = torch.cat((batch_r, batch_fail_r), dim=1).to(device)
+#         batch_next_obs = torch.cat((batch_next_obs, batch_fail_next_obs), dim=1).to(device)
+#         batch_dw = torch.cat((batch_dw, batch_fail_dw), dim=1).to(device)
+#
+#         # 返回之前先转换成tensor
+#         # batch_obs = torch.tensor(batch_obs, dtype=torch.float).to(device)
+#         # batch_a = torch.tensor(batch_a, dtype=torch.float).to(device)
+#         # batch_r = torch.tensor(batch_r, dtype=torch.float).to(device)
+#         # batch_next_obs = torch.tensor(batch_next_obs, dtype=torch.float).to(device)
+#         # batch_dw = torch.tensor(batch_dw, dtype=torch.float).to(device)
 #
 #         return batch_obs, batch_a, batch_r, batch_next_obs, batch_dw
 #
 #     def __len__(self) -> int:
 #         return self.size
+
+
+# 普通的buffer
+class MADDPGReplayBuffer(object):
+    def __init__(self, n_agents, state_dim, action_dim, max_size):
+        self.n_agents = n_agents
+        self.max_size = max_size
+        self.ptr = [0 for _ in range(self.n_agents)]
+        self.size = [0 for _ in range(self.n_agents)]
+
+        self.observations = []
+        self.actions = []
+        self.next_observations = []
+        self.rewards = []
+        self.dones = []
+
+        for i in range(n_agents):
+            self.observations.append(np.zeros([max_size, state_dim]))
+            self.actions.append(np.zeros([max_size, action_dim]))
+            self.next_observations.append(np.zeros([max_size, state_dim]))
+            self.rewards.append(np.zeros([max_size, 1]))
+            self.dones.append(np.zeros([max_size, 1]))
+
+    def add(self, observations, actions, next_observations, rewards, dones, flags):
+        # 存入数据的格式：torch.tensor([n_agents, dim])
+        if np.all(np.array(flags)):
+            for agent_i in range(self.n_agents):
+                self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
+                self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
+                self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
+                self.rewards[agent_i][self.ptr] = rewards[agent_i]
+                self.dones[agent_i][self.ptr] = dones[agent_i]
+
+                self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+                self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+        # for agent_i in range(self.n_agents):
+        #     if flags[agent_i]:
+        #         self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
+        #         self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
+        #         self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
+        #         self.rewards[agent_i][self.ptr] = rewards[agent_i]
+        #         self.dones[agent_i][self.ptr] = dones[agent_i]
+        #
+        #         self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+        #         self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+
+    def sample(self, batch_size):
+        size = self.max_size
+        for agent_i in range(self.n_agents):
+            size = min(size, self.ptr[agent_i])
+        index = np.random.choice(size, size=batch_size)  # Randomly sampling
+        batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
+        batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
+        batch_r = torch.tensor([self.rewards[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
+        batch_next_obs = torch.tensor([self.next_observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
+        batch_dw = torch.tensor([self.dones[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
+
+        return batch_obs, batch_a, batch_r, batch_next_obs, batch_dw
+
+    def __len__(self) -> int:
+        return self.size
 
 
 def eval_policy(maddpg):
@@ -459,7 +473,7 @@ if __name__ == "__main__":
     env_name = "MAStandardEnv"
     env = Env(mode="train")
     policy_name = "MADDPG"
-    state_dim = 18
+    state_dim = 15
     action_dim = 3
     max_action = 1.0
     n_agents = 2
@@ -555,12 +569,15 @@ if __name__ == "__main__":
         #                 np.array(evaluate_rewards))
 
         if np.all(np.array(dones)):
-            print(
-                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+            # print(
+            #     f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             train_episode_rewards.append(episode_reward)
             if train_episode_ma_rewards:
                 train_episode_ma_rewards.append(
                     0.98 * train_episode_ma_rewards[-1] + 0.02 * episode_reward)  # 移动平均，每50个episode的
+                print(f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps}  "
+                      f"Sum: {episode_reward:.3f}  Avg: {0.99 * train_episode_ma_rewards[-1] + 0.01 * episode_reward:.3f}     "
+                      f"Success:{env.success_count}")
             else:
                 train_episode_ma_rewards.append(episode_reward)
             if (t + 1) % evaluate_freq == 0:

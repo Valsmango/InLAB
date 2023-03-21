@@ -29,7 +29,7 @@ class StandardEnv(object):
         self.viewer = None
         self._max_episode_steps = 200
 
-        self.max_action = np.array([5.0, 5.0, 0.5])
+        self.max_action = np.array([10.0, 10.0, 2.0])
         # ndarray - tuple
         self.static_obs_state = []
         self.dynamic_obs_state = []

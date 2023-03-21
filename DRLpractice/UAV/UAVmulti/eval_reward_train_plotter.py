@@ -65,8 +65,8 @@ if __name__ == "__main__":
     # # avg_rewards = np.load(f"./eval_reward_train/MADDPG/{file_name}.npy")
     # # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
     # #########
-    # # training_rewards = np.load(f"./eval_reward_train/MADDPG/train_reward_{file_name}.npy")
-    # # training_rewards_plot(training_rewards)
+    # training_rewards = np.load(f"./eval_reward_train/MADDPG/train_reward_{file_name}.npy")
+    # training_rewards_plot(training_rewards)
     # #########
     # training_ma_rewards = np.load(f"./eval_reward_train/MADDPG/train_ma_reward_{file_name}.npy")
     # training_ma_rewards_plot(training_ma_rewards)
@@ -85,6 +85,21 @@ if __name__ == "__main__":
     #########
     training_ma_rewards = np.load(f"./eval_reward_train/MATD3/train_ma_reward_{file_name}.npy")
     training_ma_rewards_plot(training_ma_rewards)
+
+    # ####################################  载入MASAC  ##########################################
+    # policy_name = "MASAC"
+    # env_name = "MAStandardEnv"
+    # seed_num = 10
+    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    # #########
+    # # avg_rewards = np.load(f"./eval_reward_train/MASAC/{file_name}.npy")
+    # # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    # ########
+    # training_rewards = np.load(f"./eval_reward_train/MASAC/train_reward_{file_name}.npy")
+    # training_rewards_plot(training_rewards)
+    # #########
+    # training_ma_rewards = np.load(f"./eval_reward_train/MASAC/train_ma_reward_{file_name}.npy")
+    # training_ma_rewards_plot(training_ma_rewards)
 
     # ####################################  载入TD3  ##########################################
     # policy_name = "TD3"

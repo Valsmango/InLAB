@@ -33,15 +33,19 @@ class Actor(nn.Module):
 class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
     def __init__(self, state_dim, action_dim, hidden_width):
         super(Critic, self).__init__()
+        self.n_agents = 2
+        self.input_dim = self.n_agents * (state_dim + action_dim)
         # Q1
-        self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
+        self.l1 = nn.Linear(self.input_dim, hidden_width)
+        # self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
         self.l2 = nn.Linear(hidden_width, hidden_width)
         self.l3 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l1)
         # orthogonal_init(self.l2)
         # orthogonal_init(self.l3)
         # Q2
-        self.l4 = nn.Linear(state_dim + action_dim, hidden_width)
+        self.l4 = nn.Linear(self.input_dim, hidden_width)
+        # self.l4 = nn.Linear(state_dim + action_dim, hidden_width)
         self.l5 = nn.Linear(hidden_width, hidden_width)
         self.l6 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l4)
@@ -49,7 +53,8 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         # orthogonal_init(self.l6)
 
     def forward(self, s, a):
-        s_a = torch.cat([s, a], dim=2)
+        # s_a = torch.cat([s, a], dim=2)
+        s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
         q1 = self.l3(q1)
@@ -61,7 +66,8 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         return q1, q2
 
     def Q1(self, s, a):
-        s_a = torch.cat([s, a], 2)
+        # s_a = torch.cat([s, a], 2)
+        s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
         q1 = self.l3(q1)
@@ -178,27 +184,27 @@ class MATD3(object):
         curr_agent.critic_optimizer.step()
 
         # 更新Actor
-        if self.actor_pointer % (self.policy_freq * self.n_agents) == 0:
-            curr_pol_out = curr_agent.actor(obs[agent_i])  # tensor([64,3])
-            curr_pol_vf_in = curr_pol_out
-            all_pol_acs = []
-            for i, pi, ob in zip(range(self.n_agents), self.actors, obs):
-                if i == agent_i:
-                    all_pol_acs.append(curr_pol_vf_in.cpu().data.numpy())
-                else:
-                    all_pol_acs.append(pi(ob).cpu().data.numpy())
-            # Compute the actor loss
-            actor_loss = -curr_agent.critic.Q1(obs, torch.Tensor(all_pol_acs).to(device)).mean()
-            actor_loss += (curr_pol_out ** 2).mean() * 1e-3
+        # if self.actor_pointer % (self.policy_freq * self.n_agents) == 0:
+        curr_pol_out = curr_agent.actor(obs[agent_i])  # tensor([64,3])
+        curr_pol_vf_in = curr_pol_out
+        all_pol_acs = []
+        for i, pi, ob in zip(range(self.n_agents), self.actors, obs):
+            if i == agent_i:
+                all_pol_acs.append(curr_pol_vf_in.cpu().data.numpy())
+            else:
+                all_pol_acs.append(pi(ob).cpu().data.numpy())
+        # Compute the actor loss
+        actor_loss = -curr_agent.critic.Q1(obs, torch.Tensor(all_pol_acs).to(device)).mean()
+        actor_loss += (curr_pol_out ** 2).mean() * 1e-3
 
-            curr_agent.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            nn.utils.clip_grad_norm_(curr_agent.actor.parameters(), 0.5)
-            curr_agent.actor_optimizer.step()
+        curr_agent.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        nn.utils.clip_grad_norm_(curr_agent.actor.parameters(), 0.5)
+        curr_agent.actor_optimizer.step()
 
-            if target_update:
-                self.soft_update(curr_agent.critic_target, curr_agent.critic, self.TAU)
-                self.soft_update(curr_agent.actor_target, curr_agent.actor, self.TAU)
+        if target_update:
+            self.soft_update(curr_agent.critic_target, curr_agent.critic, self.TAU)
+            self.soft_update(curr_agent.actor_target, curr_agent.actor, self.TAU)
 
     def save(self, filename):
         save_dict = {'agent_params': [a.get_params() for a in self.agents]}
@@ -232,8 +238,8 @@ class MATD3ReplayBuffer(object):
 
     def add(self, observations, actions, next_observations, rewards, dones, flags):
         # 存入数据的格式：torch.tensor([n_agents, dim])
-        for agent_i in range(self.n_agents):
-            if flags[agent_i]:
+        if np.all(np.array(flags)):
+            for agent_i in range(self.n_agents):
                 self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
                 self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
                 self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
@@ -242,6 +248,16 @@ class MATD3ReplayBuffer(object):
 
                 self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
                 self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+        # for agent_i in range(self.n_agents):
+        #     if flags[agent_i]:
+        #         self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
+        #         self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
+        #         self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
+        #         self.rewards[agent_i][self.ptr] = rewards[agent_i]
+        #         self.dones[agent_i][self.ptr] = dones[agent_i]
+        #
+        #         self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+        #         self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
 
     def sample(self, batch_size):
         size = self.max_size
@@ -292,11 +308,11 @@ if __name__ == "__main__":
     env_name = "MAStandardEnv"
     env = Env(mode="train")
     policy_name = "MATD3"
-    state_dim = 18
+    state_dim = 15
     action_dim = 3
     max_action = 1.0
     n_agents = 2
-    max_timesteps = 1e6
+    max_timesteps = 3e5
     start_timesteps = 25e3
     eval_freq = 5e3
     expl_noise = 0.1  # Std of Gaussian exploration noise
@@ -304,7 +320,7 @@ if __name__ == "__main__":
 
     policy_noise = 0.2
     noise_clip = 0.5
-    update_target_freq = 100     # fixed target
+    update_target_freq = 2     # fixed target
 
     # Set seeds
     env.seed(seed)
@@ -414,5 +430,4 @@ if __name__ == "__main__":
 
     endtime = time.time()
     dtime = endtime - starttime
-    end_time = time.time()
     print("程序运行时间：%.8s s" % dtime)

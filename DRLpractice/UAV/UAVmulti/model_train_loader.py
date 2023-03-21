@@ -1,6 +1,10 @@
 # coding=utf-8
-from DRLpractice.UAV.UAVmulti.mainMATD3 import MATD3
-from DRLpractice.UAV.UAVmulti.mainSAC import *
+from DRLpractice.UAV.UAVmulti.MATD3 import MATD3
+from DRLpractice.UAV.UAVmulti.MADDPG import MADDPG
+from DRLpractice.UAV.UAVmulti.MASAC import MASAC
+from DRLpractice.UAV.UAVmulti.TD3 import TD3
+from DRLpractice.UAV.UAVmulti.envs.Env import Env
+import time
 import numpy as np
 
 MAX_EP_STEPS = 200
@@ -17,6 +21,31 @@ def model_eval_MADDPG(maddpg, n_agents):
         eval_env.render()
         time.sleep(0.1)
         actions = maddpg.choose_actions(observations=observations)
+        next_observations, rewards, dones, _ = eval_env.step(actions)
+        print(f"currently, the {i + 1} step:\n"
+              f"    Action: speed {actions[0][0] * 5.0, actions[0][1] * 5.0, actions[0][2] * 0.5}\n"
+              f"    State: pos {observations[0][0] * 5000.0, observations[0][1] * 5000.0, observations[0][2] * 300.0}\n"
+              f"           speed {observations[0][3] * 200, observations[0][4] * 200.0, observations[0][5] * 10}\n "
+              f"    Reward:{rewards[0], rewards[1]}\n")
+        total_reward += sum(rewards)
+        observations = next_observations
+        i += 1
+    print(total_reward)
+    eval_env.show_path()
+    eval_env.close()
+
+
+def model_eval_MASAC(masac, n_agents):
+    eval_env = Env("test")
+    eval_env.seed(20)
+    observations = eval_env.reset()
+    dones = [False for _ in range(n_agents)]
+    total_reward = 0.0
+    i = 0
+    while not np.all(np.array(dones)):
+        eval_env.render()
+        time.sleep(0.1)
+        actions = masac.choose_actions(observations=observations, deterministic=True)
         next_observations, rewards, dones, _ = eval_env.step(actions)
         print(f"currently, the {i + 1} step:\n"
               f"    Action: speed {actions[0][0] * 5.0, actions[0][1] * 5.0, actions[0][2] * 0.5}\n"
@@ -112,6 +141,21 @@ if __name__ == "__main__":
     # random_eval()
     # 测试模型
     model_eval_MADDPG(policy, n_agents)
+
+    # ########################## MASAC ###############################
+    # state_dim = 15
+    # action_dim = 3
+    # max_action = 1.0
+    # n_agents = 2
+    # policy_name = "MASAC"
+    # env_name = "MAStandardEnv"
+    # file_name = f"./model_train/MASAC/{policy_name}_{env_name}"
+    # policy = MATD3(n_agents=n_agents, state_dim=state_dim, action_dim=action_dim, max_action=max_action)
+    # policy.load(file_name)
+    # # 测试随机选择（非正态分布）
+    # # random_eval()
+    # # 测试模型
+    # model_eval_MADDPG(policy, n_agents)
 
     # ########################## TD3 ###############################
     # state_dim = 15
