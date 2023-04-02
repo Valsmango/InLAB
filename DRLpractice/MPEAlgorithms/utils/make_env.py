@@ -11,10 +11,10 @@ for all agents. Each element of the list should be a numpy array,
 of size (env.world.dim_p + env.world.dim_c, 1). Physical actions precede
 communication actions in this array. See environment.py for more details.
 """
-from ..MPE import MultiAgentEnv
-from ..MPE import Scenario
+from DRLpractice.MPEAlgorithms.MPE import MultiAgentEnv
+from DRLpractice.MPEAlgorithms.MPE import Scenario
 
-def make_env(scenario_name, benchmark=False, discrete_action=False):
+def make_env():
     '''
     Creates a MultiAgentEnv object as env. This can be used similar to a gym
     environment by calling env.reset() and env.step().

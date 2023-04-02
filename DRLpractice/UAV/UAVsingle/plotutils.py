@@ -28,6 +28,7 @@ def avg_eval_result_plot(rewards, eval_frequent):
 
 
 def all_eval_result_plot(rewards, eval_frequent):
+    # 输入rewards为：eval episodes（eval总次数） ， 40（每一次eval的重复次数） --> transpose后为：40 x episodes
     rewards = np.transpose(rewards)
     df = pd.DataFrame(rewards).melt(var_name="eval_times", value_name="rewards")
     sns.lineplot(x="eval_times", y="rewards", data=df)

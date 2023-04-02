@@ -76,12 +76,12 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()
-        self.n_agents = 2
-        self.input_dim = self.n_agents*(state_dim + action_dim)
         # self.l1 = nn.Linear(state_dim, 256)
         # self.l2 = nn.Linear(256 + action_dim, 256)
+        self.n_agents = 3
+        self.input_dim = self.n_agents * (state_dim + action_dim)
+        # Q1
         self.l1 = nn.Linear(self.input_dim, 256)
-        # self.l1 = nn.Linear(state_dim + action_dim, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, 1)
         # orthogonal_init(self.l1)
@@ -92,6 +92,8 @@ class Critic(nn.Module):
         # 输入：【agent，batch，dim】 -- > cat之后【agent，batch，s+a的dim】
         # q = F.relu(self.l1(state))
         # q = F.relu(self.l2(torch.cat([q, action], dim=2)))
+
+        # x = torch.cat([state, action], dim=1)
         x = torch.cat([state, action], dim=2).view(-1, self.input_dim)
         q = F.relu(self.l1(x))
         q = F.relu(self.l2(q))
@@ -202,16 +204,16 @@ class MADDPG(object):
             all_trgt_acs = torch.Tensor([pi(nobs).cpu().data.numpy()
                                          for pi, nobs in zip(self.actor_targets, next_obs)]).to(device)  # [2,64,3]
             all_trgt_Q = (rews[agent_i].view(-1, 1) + self.gamma *
-                          self.common_critic(next_obs, all_trgt_acs) *
+                          curr_agent.critic_target(next_obs, all_trgt_acs) *
                           (1 - dones[agent_i].view(-1, 1)))  # reward和dones-->view:[64,1], 而next_obs和acs为tensor([2,64,1])
         # Compute the current Q and the critic loss
-        current_Q = self.common_critic(obs, acs)  # obs和acs为tensor([2,64,1])
+        current_Q = curr_agent.critic_target(obs, acs)  # obs和acs为tensor([2,64,1])
         critic_loss = self.MseLoss(current_Q, all_trgt_Q)
         # Optimize the critic
-        self.common_critic_optimizer.zero_grad()
+        curr_agent.critic_optimizer.zero_grad()
         critic_loss.backward()
-        # nn.utils.clip_grad_norm_(curr_agent.critic.parameters(), 0.5)
-        self.common_critic_optimizer.step()
+        nn.utils.clip_grad_norm_(curr_agent.critic.parameters(), 0.5)
+        curr_agent.critic_optimizer.step()
 
         # 更新Actor
         curr_pol_out = curr_agent.actor(obs[agent_i])  # tensor([64,3])
@@ -223,12 +225,12 @@ class MADDPG(object):
             else:
                 all_pol_acs.append(pi(ob).cpu().data.numpy())
         # Compute the actor loss
-        actor_loss = -self.common_critic(obs, torch.Tensor(all_pol_acs).to(device)).mean()
+        actor_loss = -curr_agent.critic(obs, torch.Tensor(all_pol_acs).to(device)).mean()
         actor_loss += (curr_pol_out ** 2).mean() * 1e-3
 
         curr_agent.actor_optimizer.zero_grad()
         actor_loss.backward()
-        # nn.utils.clip_grad_norm_(curr_agent.actor.parameters(), 0.5)
+        nn.utils.clip_grad_norm_(curr_agent.actor.parameters(), 0.5)
         curr_agent.actor_optimizer.step()
 
     def update_all_targets(self):
@@ -259,11 +261,7 @@ class MADDPG(object):
         """
         Save trained parameters of all agents into one file
         """
-        common_critic_dict = {'critic': self.common_critic.state_dict(),
-                              'critic_target': self.common_critic_target.state_dict(),
-                              'critic_optimizer': self.common_critic_optimizer.state_dict()}
-        save_dict = {'agent_params': [a.get_params() for a in self.agents],
-                     'common_critic': common_critic_dict}
+        save_dict = {'agent_params': [a.get_params() for a in self.agents]}
         torch.save(save_dict, filename)
 
     def load(self, filename):
@@ -273,10 +271,6 @@ class MADDPG(object):
         save_dict = torch.load(filename)
         for a, params in zip(self.agents, save_dict['agent_params']):
             a.load_params(params)
-        critic_params = save_dict['common_critic']
-        self.common_critic.load_state_dict(critic_params['critic'])
-        self.common_critic_target.load_state_dict(critic_params['critic_target'])
-        self.common_critic_optimizer.load_state_dict(critic_params['critic_optimizer'])
 
 
 # class MADDPGReplayBuffer(object):
@@ -340,7 +334,7 @@ class MADDPG(object):
 #         sample_size = int(batch_size * 0.9)
 #         size = self.max_size
 #         for agent_i in range(self.n_agents):
-#             size = min(size, self.ptr[agent_i])
+#             size = min(size, self.size[agent_i])
 #         index = np.random.choice(size, size=sample_size)  # Randomly sampling
 #         batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
 #         batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float)
@@ -386,6 +380,8 @@ class MADDPGReplayBuffer(object):
         self.max_size = max_size
         self.ptr = [0 for _ in range(self.n_agents)]
         self.size = [0 for _ in range(self.n_agents)]
+        self.action_dim = action_dim
+        self.state_dim = state_dim
 
         self.observations = []
         self.actions = []
@@ -402,18 +398,24 @@ class MADDPGReplayBuffer(object):
 
     def add(self, observations, actions, next_observations, rewards, dones, flags):
         # 存入数据的格式：torch.tensor([n_agents, dim])
-        if np.all(np.array(flags)):
-            for agent_i in range(self.n_agents):
+        for agent_i in range(self.n_agents):
+            if flags[agent_i]:
                 self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
                 self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
                 self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
                 self.rewards[agent_i][self.ptr] = rewards[agent_i]
                 self.dones[agent_i][self.ptr] = dones[agent_i]
+            else:
+                self.observations[agent_i][self.ptr] = np.stack(torch.zeros([self.state_dim]))
+                self.actions[agent_i][self.ptr] = np.stack(torch.zeros([self.action_dim]))
+                self.next_observations[agent_i][self.ptr] = np.stack(torch.zeros([self.state_dim]))
+                self.rewards[agent_i][self.ptr] = 0.0
+                self.dones[agent_i][self.ptr] = 1.0  # True --> 1.0
 
-                self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
-                self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
-        # for agent_i in range(self.n_agents):
-        #     if flags[agent_i]:
+            self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+            self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+        # if np.all(np.array(flags)):
+        #     for agent_i in range(self.n_agents):
         #         self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
         #         self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
         #         self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
@@ -426,7 +428,7 @@ class MADDPGReplayBuffer(object):
     def sample(self, batch_size):
         size = self.max_size
         for agent_i in range(self.n_agents):
-            size = min(size, self.ptr[agent_i])
+            size = min(size, self.size[agent_i])
         index = np.random.choice(size, size=batch_size)  # Randomly sampling
         batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
         batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
@@ -438,30 +440,6 @@ class MADDPGReplayBuffer(object):
 
     def __len__(self) -> int:
         return self.size
-
-
-def eval_policy(maddpg):
-    times = 40  # Perform three evaluations and calculate the average
-    evaluate_reward = 0
-    n_agents = 2
-    # seed = 20
-    # torch.manual_seed(seed)
-    # torch.cuda.manual_seed(seed)
-    # np.random.seed(seed)
-    for _ in range(times):
-        env = Env(mode="test")
-        observations = env.reset()
-        dones = [False for i in range(n_agents)]
-        episode_reward = 0
-        while not np.any(np.array(dones)):
-            actions = maddpg.choose_actions(observations=observations)
-            next_observations, rewards, dones, flags = env.step(actions)
-            episode_reward += sum(rewards)
-            observations = next_observations
-        env.close()
-        evaluate_reward += episode_reward
-
-    return evaluate_reward / times
 
 
 if __name__ == "__main__":
@@ -476,7 +454,7 @@ if __name__ == "__main__":
     state_dim = 15
     action_dim = 3
     max_action = 1.0
-    n_agents = 2
+    n_agents = 3
     max_timesteps = 1e6
     start_timesteps = 25e3
     eval_freq = 5e3
@@ -554,20 +532,6 @@ if __name__ == "__main__":
             if update_iter_count % update_freq == 0:
                 maddpg.update_all_targets()
 
-        # # if t >= start_timesteps and (t + 1) % evaluate_freq == 0:
-        # if (t + 1) % evaluate_freq == 0:
-        #     evaluate_num += 1
-        #     evaluate_reward = eval_policy(maddpg)
-        #     evaluate_rewards.append(evaluate_reward)
-        #     # print("---------------------------------------")
-        #     print("evaluate_num:{} \t evaluate_reward:{}".format(evaluate_num, evaluate_reward))
-        #     # print("---------------------------------------")
-        #     # writer.add_scalar('step_rewards_{}'.format(env_name[env_index]), evaluate_reward, global_step=total_steps)
-        #     # Save the rewards
-        #     if evaluate_num % 10 == 0:
-        #         np.save('./eval_reward_train/MADDPG/MADDPG_env_{}_seed_{}.npy'.format(env_name, seed),
-        #                 np.array(evaluate_rewards))
-
         if np.all(np.array(dones)):
             # print(
             #     f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
@@ -580,7 +544,7 @@ if __name__ == "__main__":
                       f"Success:{env.success_count}")
             else:
                 train_episode_ma_rewards.append(episode_reward)
-            if (t + 1) % evaluate_freq == 0:
+            if (episode_num + 1) % 100 == 0:
                 np.save('./eval_reward_train/MADDPG/train_reward_MADDPG_env_{}_seed_{}.npy'.format(env_name, seed),
                         np.array(train_episode_rewards))
                 np.save('./eval_reward_train/MADDPG/train_ma_reward_MADDPG_env_{}_seed_{}.npy'.format(env_name, seed),

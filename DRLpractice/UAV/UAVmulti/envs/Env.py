@@ -17,6 +17,7 @@ simple env
 class Env(object):
     def __init__(self, mode="Train"):
         self.success_count = 0
+        # self.collision_count = 0
         self.uav_state = []
         self.path = []
         self.delta_t = 1
@@ -26,11 +27,11 @@ class Env(object):
         self.viewer = None
         self._max_episode_steps = 200
         self.marker_list = ['x', '.', '|']
-        # self.color_list = ['green', 'blue', 'red']
+        self.color_list = [(46/255, 139/255, 87/255), (106/255, 90/255, 205/255), (178/255, 34/255, 34/255)]
 
         self.max_action = np.array([10.0, 10.0, 2.0])
         # ndarray - tuple
-        self.n_uav = 2
+        self.n_uav = 3
         self.continue_flag = [True for _ in range(self.n_uav)]
 
         assert (mode == "train" or mode == "test"), "Env Mode Error！"
@@ -58,27 +59,48 @@ class Env(object):
             # v_x2 = (tar_x2 - x2) / 50
             # v_y2 = (tar_y2 - y2) / 50
             # v_z2 = (tar_z2 - z2) / 50
+            # r3 = np.random.rand() * 300 + 2200
+            # alpha3 = np.random.rand() * 2 * np.pi
+            # x3 = np.cos(alpha3) * r3 + 2500
+            # y3 = np.sin(alpha3) * r3 + 2500
+            # z3 = np.random.rand() * 200 + 50
+            # tar_x3 = 5000 - x3
+            # tar_y3 = 5000 - y3
+            # tar_z3 = 300 - z3
+            # v_x3 = (tar_x3 - x3) / 50
+            # v_y3 = (tar_y3 - y3) / 50
+            # v_z3 = (tar_z3 - z3) / 50
             # init_start = [
             #     [x1, y1, z1, v_x1, v_y1, v_z1, tar_x1, tar_y1, tar_z1,
-            #      x2, y2, z2, v_x2, v_y2, v_z2],
+            #      x2, y2, z2, x3, y3, z3],
             #     [x2, y2, z2, v_x2, v_y2, v_z2, tar_x2, tar_y2, tar_z2,
-            #      x1, y1, z1, v_x1, v_y1, v_z1]]
-            # init_target = [[tar_x1, tar_y1, tar_z1], [tar_x2, tar_y2, tar_z2]]
+            #      x1, y1, z1, x3, y3, z3],
+            #     [x3, y3, z3, v_x3, v_y3, v_z3, tar_x3, tar_y3, tar_z3,
+            #      x1, y1, z1, x2, y2, z2]]
+            # init_target = [[tar_x1, tar_y1, tar_z1], [tar_x2, tar_y2, tar_z2], [tar_x3, tar_y3, tar_z3]]
 
             init_start = [
-                [200, 2500, 150, 100, 0, 0, 4800, 2500, 150,
-                 2500, 200, 150, 0, 100, 0],
-                [2500, 200, 150, 0, 100, 0, 2500, 4800, 150,
-                 200, 2500, 150, 100, 0, 0]]
-            init_target = [[4800, 2500, 150], [2500, 4800, 150]]
-            # init_start = [
-            #     [0, 2500, 150, 100, 0, 0, 5000, 2500, 150,
-            #      2500, 0, 150, 0, 100, 0],
-            #     [2500, 0, 150, 0, 100, 0, 2500, 5000, 150,
-            #      0, 2500, 150, 100, 0, 0]]
-            # init_target = [[5000, 2500, 150], [2500, 5000, 150]]
+                [200, 2500, 150, (4800-200)/50, 0, 0, 4800, 2500, 150,
+                 2500, 200, 150, 4800, 2500, 150],
+                [2500, 200, 150, 0, (4800-200)/50, 0, 2500, 4800, 150,
+                 200, 2500, 150, 4800, 2500, 150],
+                [4800, 2500, 150, (200-4800)/50, 0, 0, 200, 2500, 150,
+                 2500, 200, 150, 200, 2500, 150]]
+            init_target = [[4800, 2500, 150], [2500, 4800, 150], [200, 2500, 150]]
 
         self._init_map(init_start, init_target)
+
+    def _init_map(self, init_start, init_target):
+        self.target = init_target
+        self.uav_init_state = init_start
+        self.uav_state = copy.deepcopy(self.uav_init_state)
+        self.att = 0.0025 * 2 / ((self.target[0][0] / 1000 - self.uav_init_state[0][0] / 1000) ** 2 +
+                                 (self.target[0][1] / 1000 - self.uav_init_state[0][1] / 1000) ** 2 +
+                                 (self.target[0][2] / 1000 - self.uav_init_state[0][2] / 1000) ** 2)
+        self.rep = 0.00125 * 2 / (1 / self.min_sep_hori - 1 / self.min_range) ** 2
+        # print(f"att parameter: {self.att}; rep parameter: {self.rep}")
+        for i in range(self.n_uav):
+            self.path.append([[self.uav_init_state[i][0], self.uav_init_state[i][1], self.uav_init_state[i][2]]])
 
     def reset(self):
         self.uav_state = copy.deepcopy(self.uav_init_state)
@@ -86,10 +108,10 @@ class Env(object):
         for i in range(self.n_uav):
             self.path.append([[self.uav_init_state[i][0], self.uav_init_state[i][1], self.uav_init_state[i][2]]])
         # 【x，y，z，v_x，v_y，v_z，tar_x，tar_y，tar_z，agent2_x，agent2_y，agent2_z】
-        return_state = [np.array(self.uav_state[0]) / np.array([5000.0, 5000.0, 300.0, 200.0, 200.0, 10.0, 5000.0, 5000.0, 300.0,
-                                                                5000.0, 5000.0, 300.0, 200.0, 200.0, 10.0]),
-                        np.array(self.uav_state[1]) / np.array([5000.0, 5000.0, 300.0, 200.0, 200.0, 10.0, 5000.0, 5000.0, 300.0,
-                                                                5000.0, 5000.0, 300.0, 200.0, 200.0, 10.0])]
+        return_state = []
+        for i in range(self.n_uav):
+            return_state.append(np.array(self.uav_state[i]) / np.array([5000.0, 5000.0, 300.0, 200.0, 200.0, 10.0, 5000.0, 5000.0, 300.0,
+                                                                5000.0, 5000.0, 300.0, 5000.0, 5000.0, 300.0]))
         return torch.Tensor(return_state)
 
     def step(self, input_action):
@@ -145,13 +167,15 @@ class Env(object):
                     reward[i] += -1
                 self.uav_state[i][2] += self.uav_state[i][5] * self.delta_t
                 self.path[i].append([self.uav_state[i][0], self.uav_state[i][1], self.uav_state[i][2]])
+            else:
+                self.uav_state[i] = [0. for _ in range(15)]
 
         # 判断是否存在冲突
         for i in range(self.n_uav):
-            if self.continue_flag[i]:
+            if store_flag[i]:
                 j = i + 1
                 while j < self.n_uav:
-                    if self.continue_flag[j]:
+                    if store_flag[j]:
                         uav_hori_dis = np.sqrt((self.uav_state[i][0] - self.uav_state[j][0]) ** 2 +
                                                (self.uav_state[i][1] - self.uav_state[j][1]) ** 2)
                         uav_vert_dis = np.abs(self.uav_state[i][2] - self.uav_state[j][2])
@@ -172,14 +196,16 @@ class Env(object):
                         if uav_hori_dis < self.min_sep_hori and uav_vert_dis < self.min_sep_vert:
                             reward[i] += -100
                             reward[j] += -100
+                            # self.collision_count += 1
                             done[i] = True
                             done[j] = True
                             self.continue_flag[i] = False
+                            self.continue_flag[j] = False
 
                     j = j + 1
 
         for i in range(self.n_uav):
-            if self.continue_flag[i]:
+            if store_flag[i]:
                 tar_dis[i] = np.sqrt((self.uav_state[i][0] - self.target[i][0]) ** 2 +
                                        (self.uav_state[i][1] - self.target[i][1]) ** 2 +
                                        (self.uav_state[i][2] - self.target[i][2]) ** 2)
@@ -200,7 +226,7 @@ class Env(object):
                 # reward[i] += (pre_tar_dis_hori[i] - tar_dis_hori[i]) / 100 + \
                 #              (pre_tar_dis_vert[i] - tar_dis_vert[i]) / 30
 
-                reward[i] += -0.5  # 这一信息让其快速到达终点
+                # reward[i] += -0.5  # 这一信息让其快速到达终点
 
                 if not done[i]:
                     if tar_dis_vert[i] < self.min_sep_vert and tar_dis_hori[i] < self.min_sep_hori:
@@ -223,11 +249,12 @@ class Env(object):
 
         # 更新位置信息
         for i in range(self.n_uav):
-            for j in range(6):
-                self.uav_state[i][j+9] = self.uav_state[(i + 1) % self.n_uav][j] # 0-8
+            for j in range(self.n_uav-1):
+                for k in range(3):
+                    self.uav_state[i][9 + j * 3 + k] = self.uav_state[(i + j + 1) % self.n_uav][k]  # 0-8
 
             return_state.append(np.array(self.uav_state[i]) / np.array([5000.0, 5000.0, 300.0, 200.0, 200.0, 10.0, 5000.0, 5000.0, 300.0,
-                                                                5000.0, 5000.0, 300.0, 200.0, 200.0, 10.0]))
+                                                                5000.0, 5000.0, 300.0, 5000.0, 5000.0, 300.0]))
 
         return torch.Tensor(return_state), torch.Tensor(reward), done, store_flag
 
@@ -260,17 +287,6 @@ class Env(object):
             self.viewer.close()
             self.viewer = None
 
-    def _init_map(self, init_start, init_target):
-        self.target = init_target
-        self.uav_init_state = init_start
-        self.uav_state = copy.deepcopy(self.uav_init_state)
-        self.att = 0.0025 * 2 / ((self.target[0][0] / 1000 - self.uav_init_state[0][0] / 1000) ** 2 +
-                                 (self.target[0][1] / 1000 - self.uav_init_state[0][1] / 1000) ** 2 +
-                                 (self.target[0][2] / 1000 - self.uav_init_state[0][2] / 1000) ** 2)
-        self.rep = 0.00125 * 2 / (1 / self.min_sep_hori - 1 / self.min_range) ** 2
-        # print(f"att parameter: {self.att}; rep parameter: {self.rep}")
-        for i in range(self.n_uav):
-            self.path.append([[self.uav_init_state[i][0], self.uav_init_state[i][1], self.uav_init_state[i][2]]])
 
     def _show_3D_path(self):
         ax = plt.axes(projection='3d')
@@ -281,18 +297,18 @@ class Env(object):
             y = [self.path[i][j][1] / 1000 for j in range(path_len)]
             z = [self.path[i][j][2] / 1000 for j in range(path_len)]
             ax.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000],
-                       [self.path[i][path_len - 1][2] / 1000], color='green', alpha=0.7, label=f"UAV {i + 1}")
+                       [self.path[i][path_len - 1][2] / 1000], color=self.color_list[i], alpha=0.7, label=f"UAV {i + 1}")
             # for j in range(path_len - 1):
             #     ax.scatter([self.path[i][j][0] / 1000], [self.path[i][j][1] / 1000],
             #                [self.path[i][j][2] / 1000], color='green', alpha=0.3)
 
-            ax.plot3D(x, y, z, color='green')
+            ax.plot3D(x, y, z, color=self.color_list[i])
             ax.plot3D([self.uav_init_state[i][0] / 1000, self.target[i][0] / 1000],
                       [self.uav_init_state[i][1] / 1000, self.target[i][1] / 1000],
                       [self.uav_init_state[i][2] / 1000, self.target[i][2] / 1000],
-                      color='green', alpha=0.3, linestyle=':')
+                      color=self.color_list[i], alpha=0.3, linestyle=':')
 
-        ax.set_title("3D path")
+        # ax.set_title("3D path")
         ax.set_xlabel("x (km)")
         ax.set_ylabel("y (km)")
         ax.set_zlabel("z (km)")
@@ -311,25 +327,27 @@ class Env(object):
             path_len = len(self.path[i])
             x = [self.path[i][j][0] / 1000 for j in range(path_len)]
             y = [self.path[i][j][1] / 1000 for j in range(path_len)]
+            # plt.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000],
+            #             color='green', alpha=0.7, label=f"UAV {i + 1}")
             plt.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000],
-                        color='green', alpha=0.7, label=f"UAV {i + 1}")
-            for j in range(path_len - 1):
-                plt.scatter([self.path[i][j][0] / 1000], [self.path[i][j][1] / 1000],
-                            color='green', alpha=0.3, marker=self.marker_list[i])
-            plt.plot(x, y, color='green')
+                        color=self.color_list[i], alpha=0.7, label=f"UAV {i + 1}")
+            # for j in range(path_len - 1):
+            #     plt.scatter([self.path[i][j][0] / 1000], [self.path[i][j][1] / 1000],
+            #                 color=self.color_list[i], alpha=0.3, marker=self.marker_list[2])
+            plt.plot(x, y, color=self.color_list[i])
             plt.plot([self.uav_init_state[i][0] / 1000, self.target[i][0] / 1000],
                      [self.uav_init_state[i][1] / 1000, self.target[i][1] / 1000],
-                     color='green', alpha=0.3, linestyle=':')
+                     color=self.color_list[i], alpha=0.3, linestyle=':')
 
             circle1 = plt.Circle(xy=([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000]),
-                                 radius=self.min_sep_hori / 1000, linestyle=':', color='green', fill=False)
+                                 radius=self.min_sep_hori / 1000, linestyle=':', color=self.color_list[i],  fill=False)
             plt.gca().add_patch(circle1)
             circle2 = plt.Circle(xy=(2500 / 1000, 2500 / 1000), radius=2500 / 1000, linestyle=':', color='black',
                                  fill=False)
             plt.gca().add_patch(circle2)
 
         plt.axis('equal')
-        plt.title("2D path - xy")
+        # plt.title("2D path - xy")
         plt.xlabel("x (km)")
         plt.ylabel("y (km)")
         plt.xlim(0, 5)
@@ -343,23 +361,23 @@ class Env(object):
             x = [self.path[i][j][0] / 1000 for j in range(path_len)]
             z = [self.path[i][j][2] / 1000 for j in range(path_len)]
             plt.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][2] / 1000],
-                        color='green', alpha=0.7, label=f"UAV {i + 1}")
+                        color=self.color_list[i], alpha=0.7, label=f"UAV {i + 1}")
             # for j in range(path_len - 1):
             #     plt.scatter([self.path[i][j][0] / 1000], [self.path[i][j][2] / 1000],
             #                 color='green', alpha=0.3)
-            plt.plot(x, z, color='green')
+            plt.plot(x, z, color=self.color_list[i])
             plt.plot([self.uav_init_state[i][0] / 1000, self.target[i][0] / 1000],
                      [self.uav_init_state[i][2] / 1000, self.target[i][2] / 1000],
-                     color='green', alpha=0.3, linestyle=':')
+                     color=self.color_list[i], alpha=0.3, linestyle=':')
 
             rectangle1 = plt.Rectangle(xy=(self.path[i][path_len - 1][0] / 1000 - self.min_sep_hori / 1000,
                                            self.path[i][path_len - 1][2] / 1000 - self.min_sep_vert / 1000),
                                        width=self.min_sep_hori * 2 / 1000,
                                        height=self.min_sep_vert * 2 / 1000,
-                                       color='green', linestyle=':', fill=False)
+                                       color=self.color_list[i], linestyle=':', fill=False)
             plt.gca().add_patch(rectangle1)
 
-        plt.title("2D path - xz")
+        # plt.title("2D path - xz")
         plt.xlabel("x (km)")
         plt.ylabel("z (km)")
         plt.xlim(0, 5)
@@ -408,6 +426,12 @@ class Viewer(pyglet.window.Window):
 
 
 if __name__ == "__main__":
+
+    # 天蓝色：135, 206, 235  石板蓝106,90,205   深蓝 61/255, 89/255, 171/255    深绿46/255, 139/255, 87/255
+    # 深红：178/255, 34/255, 34/255
+    # plt.pie(x=[1, 2, 3], colors=[(135/255, 206/255, 235/255), (106/255, 90/255, 205/255), (46/255, 139/255, 87/255)])
+    # plt.show()
+
     env = Env(mode="train")
     init_state = env.reset()
 
@@ -415,20 +439,20 @@ if __name__ == "__main__":
     for i in range(50):
         env.render()
         time.sleep(0.1)
-        action = env.sample_action()
+        # action = env.sample_action()
+        action = torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]])
         s, r, done, _ = env.step(action)
+        print(s[2])
         print(f"currently, the {i + 1} step:\n"
-              # f"           {s[0][15]}\n"
               f"           Action: speed {action[0][0] * 5.0, action[0][1] * 5.0, action[0][2] * 0.5}\n"
               f"           State: pos {s[0][0] * 5000.0, s[0][1] * 5000.0, s[0][2] * 300.0};   speed {s[0][3] * 200, s[0][4] * 200.0, s[0][5] * 10}\n"
               f"           Reward:{r[0]}\n"
-              # f"           {s[1][15]}\n"
               f"           Action: speed {action[1][0] * 5.0, action[1][1] * 5.0, action[1][2] * 0.5}\n"
               f"           State: pos {s[1][0] * 5000.0, s[1][1] * 5000.0, s[1][2] * 300.0};   speed {s[1][3] * 200, s[1][4] * 200.0, s[1][5] * 10}\n"
               f"           Reward:{r[1]}\n")
         rewards += sum(r)
-        if np.all(done):
-            break
+        # if np.all(done):
+        #     break
     env.show_path()
     print(rewards)
     env.close()

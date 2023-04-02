@@ -9,8 +9,8 @@ import torch.nn.functional as F
 
 
 def create_map():
-    static_obstacle_num = 40
-    dynamic_obstacle_num = 10
+    static_obstacle_num = 25
+    dynamic_obstacle_num = 25
     static_obs_info = []
     dynamic_obs_info = []
     for i in range(static_obstacle_num):
@@ -26,9 +26,12 @@ def create_map():
         x_i = np.random.rand() * 4000 + 500
         y_i = np.random.rand() * 4000 + 500
         z_i = np.random.rand() * 300
-        v_x_i = np.random.rand() * 25
-        v_y_i = np.random.rand() * 25
+        v_x_i = np.random.rand() * 50 - 25
+        v_y_i = np.random.rand() * 50 - 25
         v_z_i = np.random.rand() * 3 - 1.5
+        # v_x_i = np.random.rand() * 200 - 100
+        # v_y_i = np.random.rand() * 200 - 100
+        # v_z_i = np.random.rand() * 6 - 3
         dynamic_obs_info.append({'x': x_i, 'y': y_i, 'z': z_i,
                                  'v_x': v_x_i, 'v_y': v_y_i, 'v_z': v_z_i})
     map = np.concatenate((static_obs_info, dynamic_obs_info), axis=0)
@@ -142,4 +145,5 @@ if __name__ == "__main__":
     # h = torch.tensor([[[1, 2, 1]]])
     # print(atten(x, h))
 
-    create_circle_map()
+    create_map()
+    # create_circle_map()

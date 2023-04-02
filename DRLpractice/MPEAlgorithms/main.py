@@ -8,10 +8,10 @@ from gym.spaces import Box, Discrete
 from pathlib import Path
 from torch.autograd import Variable
 from tensorboardX import SummaryWriter
-from .utils.make_env import make_env
-from .utils.buffer import ReplayBuffer
-from .utils.env_wrappers import SubprocVecEnv, DummyVecEnv
-from .algorithms.MADDPG import MADDPG
+from DRLpractice.MPEAlgorithms.utils.make_env import make_env
+from DRLpractice.MPEAlgorithms.utils.buffer import ReplayBuffer
+from DRLpractice.MPEAlgorithms.utils.env_wrappers import SubprocVecEnv, DummyVecEnv
+from DRLpractice.MPEAlgorithms.algorithms.MADDPG import MADDPG
 
 USE_CUDA = True  # torch.cuda.is_available()
 
@@ -22,10 +22,10 @@ https://zhuanlan.zhihu.com/p/555515701
 
 '''
 
-def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
+def make_parallel_env(n_rollout_threads, seed):
     def get_env_fn(rank):
         def init_env():
-            env = make_env(env_id, discrete_action=discrete_action)
+            env = make_env()
             env.seed(seed + rank * 1000)
             np.random.seed(seed + rank * 1000)
             return env
@@ -36,7 +36,7 @@ def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
         return SubprocVecEnv([get_env_fn(i) for i in range(n_rollout_threads)])
 
 def run(config):
-    model_dir = Path('./models') / config.env_id / config.model_name
+    model_dir = Path('./models')
     if not model_dir.exists():
         curr_run = 'run1'
     else:
@@ -56,8 +56,7 @@ def run(config):
     np.random.seed(config.seed)
     if not USE_CUDA:
         torch.set_num_threads(config.n_training_threads)
-    env = make_parallel_env(config.env_id, config.n_rollout_threads, config.seed,
-                            config.discrete_action)
+    env = make_parallel_env(config.n_rollout_threads, config.seed)
     maddpg = MADDPG.init_from_env(env, agent_alg=config.agent_alg,
                                   adversary_alg=config.adversary_alg,
                                   tau=config.tau,
@@ -126,10 +125,10 @@ def run(config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("env_id", help="Name of environment")
-    parser.add_argument("model_name",
-                        help="Name of directory to store " +
-                             "model/training contents")
+    # parser.add_argument("env_id",default=, help="Name of environment")
+    # parser.add_argument("model_name", default=,
+    #                     help="Name of directory to store " +
+    #                          "model/training contents")
     parser.add_argument("--seed",
                         default=1, type=int,
                         help="Random seed")

@@ -86,13 +86,13 @@ if __name__ == "__main__":
     # avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
     # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
 
-    # ####################################  载入TD3-LSTM  ##########################################
-    # policy_name = "TD3LSTM"
-    # env_name = "StandardEnv"
-    # seed_num = 10
-    # file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
-    # avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
-    # avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
+    ####################################  载入TD3-LSTM  ##########################################
+    policy_name = "TD3LSTM"
+    env_name = "StandardEnv"
+    seed_num = 10
+    file_name = f"{policy_name}_env_{env_name}_seed_{seed_num}"
+    avg_rewards = np.load(f"./eval_reward_train/{file_name}.npy")
+    avg_eval_result_plot(rewards=avg_rewards, eval_frequent=5000)
 
     ####################################  载入SAC-LSTM  ##########################################
     policy_name = "SACLSTMATT"

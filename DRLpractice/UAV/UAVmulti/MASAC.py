@@ -1,11 +1,13 @@
 # coding=utf-8
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from DRLpractice.UAV.UAVmulti.envs.SimpleEnv import *
+from DRLpractice.UAV.UAVmulti.envs.Env import Env
 from torch.distributions import Normal
 import os
 import time
-
+import copy
+import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -53,7 +55,7 @@ class Actor(nn.Module):
 class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
     def __init__(self, state_dim, action_dim, hidden_width):
         super(Critic, self).__init__()
-        self.n_agents = 2
+        self.n_agents = 3
         self.input_dim = self.n_agents * (state_dim + action_dim)
         # Q1
         self.l1 = nn.Linear(self.input_dim, hidden_width)
@@ -73,8 +75,11 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         # orthogonal_init(self.l6)
 
     def forward(self, s, a):
-        s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
-        # s_a = torch.cat([s, a], 1)
+        # s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
+        s_a = torch.cat([s, a], dim=2)
+        s_a = s_a.permute(1, 0, 2)
+        s_a = s_a.reshape(-1, self.input_dim)
+        # s_a = torch.cat([s, a], 2)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
         q1 = self.l3(q1)
@@ -109,20 +114,30 @@ class MASACReplayBuffer(object):
     def add(self, observations, actions, next_observations, rewards, dones, flags):
         # 存入数据的格式：torch.tensor([n_agents, dim])
         for agent_i in range(self.n_agents):
-            if flags[agent_i]:
-                self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
-                self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
-                self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
-                self.rewards[agent_i][self.ptr] = rewards[agent_i]
-                self.dones[agent_i][self.ptr] = dones[agent_i]
+            self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
+            self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
+            self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
+            self.rewards[agent_i][self.ptr] = rewards[agent_i]
+            self.dones[agent_i][self.ptr] = dones[agent_i]
 
-                self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
-                self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+            self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+            self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+        # 存入数据的格式：torch.tensor([n_agents, dim])
+        # if np.all(np.array(flags)):
+        #     for agent_i in range(self.n_agents):
+        #         self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
+        #         self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
+        #         self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
+        #         self.rewards[agent_i][self.ptr] = rewards[agent_i]
+        #         self.dones[agent_i][self.ptr] = dones[agent_i]
+        #
+        #         self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+        #         self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
 
     def sample(self, batch_size):
         size = self.max_size
         for agent_i in range(self.n_agents):
-            size = min(size, self.ptr[agent_i])
+            size = min(size, self.size[agent_i])
         index = np.random.choice(size, size=batch_size)  # Randomly sampling
         batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
         batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
@@ -243,10 +258,26 @@ class MASAC(object):
             params.requires_grad = False
 
         # Compute actor loss
-        a, log_pi = curr_agent.actor(obs)
-        Q1, Q2 = curr_agent.critic(obs, a)
-        Q = torch.min(Q1, Q2)
-        actor_loss = (float(curr_agent.alpha) * log_pi - Q).mean()
+        ############################ 更新方式1：全体最优 ####################################
+        curr_pol_out_a, log_pi = curr_agent.actor(obs[agent_i])  # tensor([64,3])
+        curr_pol_vf_in = curr_pol_out_a
+        all_pol_acs = []
+        for i, pi, ob in zip(range(self.n_agents), self.actors, obs):
+            if i == agent_i:
+                all_pol_acs.append(curr_pol_vf_in.cpu().data.numpy())
+            else:
+                tmp_a, tmp_log_pi = pi(ob)
+                all_pol_acs.append(tmp_a.cpu().data.numpy())
+        # Compute the actor loss
+        # 使所有agent的平均Q最大，即以全局最优为目标：
+        Q1, Q2 = curr_agent.critic(obs, torch.Tensor(all_pol_acs).to(device))
+        actor_loss = (float(curr_agent.alpha) * log_pi - torch.min(Q1, Q2)).mean()
+
+        # ############################ 更新方式2：个体最优 ####################################
+        # a, log_pi = curr_agent.actor(obs)
+        # Q1, Q2 = curr_agent.critic(obs, a)
+        # Q = torch.min(Q1, Q2)
+        # actor_loss = (float(curr_agent.alpha) * log_pi - Q).mean()
 
         # Optimize the actor
         curr_agent.actor_optimizer.zero_grad()
@@ -297,7 +328,7 @@ if __name__ == '__main__':
     state_dim = 15
     action_dim = 3
     max_action = 1.0
-    n_agents = 2
+    n_agents = 3
     max_episode_steps = 200  # Maximum number of steps per episode
     batch_size = 64
 
@@ -312,7 +343,7 @@ if __name__ == '__main__':
     episode_reward_agents = [0 for _ in range(n_agents)]
     episode_timesteps = 0
     episode_num = 0
-    update_target_freq = 100  # fixed target
+    update_target_freq = 2  # fixed target
 
     agent = MASAC(n_agents=n_agents, state_dim=state_dim, action_dim=action_dim, max_action=max_action)
     replay_buffer = MASACReplayBuffer(n_agents=n_agents, state_dim=state_dim, action_dim=action_dim, max_size=int(max_timesteps))
@@ -342,6 +373,10 @@ if __name__ == '__main__':
         else:
             # Add Gaussian noise to action for exploration
             actions = agent.choose_actions(observations=observations)
+            # print(f"currently, the {t + 1} step:\n"
+            #       f"           Action: speed {actions[0][0] * 10.0, actions[0][1] * 10.0, actions[0][2] * 2.0}\n"
+            #       f"           Action: speed {actions[1][0] * 10.0, actions[1][1] * 10.0, actions[1][2] * 2.0}\n"
+            #       f"           Action: speed {actions[2][0] * 10.0, actions[2][1] * 10.0, actions[2][2] * 2.0}\n")
 
         # Perform action
         next_observations, rewards, dones, store_flags = env.step(actions)
@@ -353,11 +388,11 @@ if __name__ == '__main__':
         episode_reward += sum(rewards)
 
         if t >= start_timesteps:
-            # if t % update_target_freq == 0:
-            #     update_target = True
-            # else:
-            #     update_target = False
-            update_target = True    # 不是fixed target
+            if t % update_target_freq == 0:
+                update_target = True
+            else:
+                update_target = False
+            # update_target = True    # 不是fixed target
             for i in range(n_agents):
                 sample = replay_buffer.sample(batch_size)
                 agent.update(sample, i, update_target)
@@ -373,7 +408,7 @@ if __name__ == '__main__':
                       f"Success:{env.success_count}")
             else:
                 train_episode_ma_rewards.append(episode_reward)
-            if (t+1) % evaluate_freq == 0:
+            if (episode_num + 1) % 100 == 0:
                 np.save('./eval_reward_train/MASAC/train_reward_MASAC_env_{}_seed_{}.npy'.format(env_name, seed),
                         np.array(train_episode_rewards))
                 np.save('./eval_reward_train/MASAC/train_ma_reward_MASAC_env_{}_seed_{}.npy'.format(env_name, seed),

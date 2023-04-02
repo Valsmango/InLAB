@@ -33,19 +33,19 @@ class Actor(nn.Module):
 class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
     def __init__(self, state_dim, action_dim, hidden_width):
         super(Critic, self).__init__()
-        self.n_agents = 2
-        self.input_dim = self.n_agents * (state_dim + action_dim)
+        # self.n_agents = 2
+        # self.input_dim = self.n_agents * (state_dim + action_dim)
         # Q1
-        self.l1 = nn.Linear(self.input_dim, hidden_width)
-        # self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
+        # self.l1 = nn.Linear(self.input_dim, hidden_width)
+        self.l1 = nn.Linear(state_dim + action_dim, hidden_width)
         self.l2 = nn.Linear(hidden_width, hidden_width)
         self.l3 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l1)
         # orthogonal_init(self.l2)
         # orthogonal_init(self.l3)
         # Q2
-        self.l4 = nn.Linear(self.input_dim, hidden_width)
-        # self.l4 = nn.Linear(state_dim + action_dim, hidden_width)
+        # self.l4 = nn.Linear(self.input_dim, hidden_width)
+        self.l4 = nn.Linear(state_dim + action_dim, hidden_width)
         self.l5 = nn.Linear(hidden_width, hidden_width)
         self.l6 = nn.Linear(hidden_width, 1)
         # orthogonal_init(self.l4)
@@ -53,8 +53,8 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         # orthogonal_init(self.l6)
 
     def forward(self, s, a):
-        # s_a = torch.cat([s, a], dim=2)
-        s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
+        s_a = torch.cat([s, a], dim=2)
+        # s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
         q1 = self.l3(q1)
@@ -66,8 +66,8 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         return q1, q2
 
     def Q1(self, s, a):
-        # s_a = torch.cat([s, a], 2)
-        s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
+        s_a = torch.cat([s, a], 2)
+        # s_a = torch.cat([s, a], dim=2).view(-1, self.input_dim)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
         q1 = self.l3(q1)
@@ -171,11 +171,12 @@ class MATD3(object):
                 all_trgt_acs.append(acs_next.cpu().data.numpy())
             all_trgt_acs = torch.tensor(all_trgt_acs).to(device)  # tensor([2,64,3])
 
-            Q1_next, Q2_next = curr_agent.critic_target(next_obs, all_trgt_acs)
-            all_trgt_Q = rews[agent_i] + self.GAMMA * torch.min(Q1_next, Q2_next) * (1 - dones[agent_i])
+            Q1_next, Q2_next = curr_agent.critic_target(next_obs, all_trgt_acs)  # Q1和Q2都是tensor([2,64,1])
+            # torch.min(Q1,Q2)也是tensor([2,64,1])
+            all_trgt_Q = rews[agent_i] + self.GAMMA * torch.min(Q1_next, Q2_next) * (1 - dones[agent_i])    # tensor([2,64,1])
 
         # Compute the current Q and the critic loss
-        current_Q1, current_Q2 = curr_agent.critic(obs, acs)  # tensor([2,64,1])
+        current_Q1, current_Q2 = curr_agent.critic(obs, acs)  # Q1和Q2都是tensor([2,64,1])
         critic_loss = self.MseLoss(current_Q1, all_trgt_Q) + self.MseLoss(current_Q2, all_trgt_Q)
         # Optimize the critic
         curr_agent.critic_optimizer.zero_grad()
@@ -184,23 +185,32 @@ class MATD3(object):
         curr_agent.critic_optimizer.step()
 
         # 更新Actor
-        # if self.actor_pointer % (self.policy_freq * self.n_agents) == 0:
-        curr_pol_out = curr_agent.actor(obs[agent_i])  # tensor([64,3])
-        curr_pol_vf_in = curr_pol_out
-        all_pol_acs = []
-        for i, pi, ob in zip(range(self.n_agents), self.actors, obs):
-            if i == agent_i:
-                all_pol_acs.append(curr_pol_vf_in.cpu().data.numpy())
-            else:
-                all_pol_acs.append(pi(ob).cpu().data.numpy())
-        # Compute the actor loss
-        actor_loss = -curr_agent.critic.Q1(obs, torch.Tensor(all_pol_acs).to(device)).mean()
-        actor_loss += (curr_pol_out ** 2).mean() * 1e-3
+        if (self.actor_pointer - 1) % (self.policy_freq * self.n_agents) == agent_i:
 
-        curr_agent.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        nn.utils.clip_grad_norm_(curr_agent.actor.parameters(), 0.5)
-        curr_agent.actor_optimizer.step()
+        ############################ 更新方式1：全体最优 ####################################
+            # curr_pol_out = curr_agent.actor(obs[agent_i])  # tensor([64,3])
+            # curr_pol_vf_in = curr_pol_out
+            # all_pol_acs = []
+            # for i, pi, ob in zip(range(self.n_agents), self.actors, obs):
+            #     if i == agent_i:
+            #         all_pol_acs.append(curr_pol_vf_in.cpu().data.numpy())
+            #     else:
+            #         all_pol_acs.append(pi(ob).cpu().data.numpy())
+            # # Compute the actor loss
+            # # 使所有agent的平均Q最大，即以全局最优为目标：
+            # actor_loss = -curr_agent.critic.Q1(obs, torch.Tensor(all_pol_acs).to(device)).mean()
+            # actor_loss += -curr_agent.critic.Q1(obs[agent_i].unsqueeze(0),
+            #                                curr_agent.actor(obs[agent_i]).unsqueeze(0)).mean()
+            # # actor_loss += (curr_pol_out ** 2).mean() * 1e-3
+
+         ############################ 更新方式2：个体最优 ####################################
+         # 使agent自身的Q最大，即以个体最优为目标：
+            actor_loss = -curr_agent.critic.Q1(obs[agent_i].unsqueeze(0), curr_agent.actor(obs[agent_i]).unsqueeze(0)).mean()
+
+            curr_agent.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            nn.utils.clip_grad_norm_(curr_agent.actor.parameters(), 0.5)
+            curr_agent.actor_optimizer.step()
 
         if target_update:
             self.soft_update(curr_agent.critic_target, curr_agent.critic, self.TAU)
@@ -220,6 +230,8 @@ class MATD3ReplayBuffer(object):
     def __init__(self, n_agents, state_dim, action_dim, max_size):
         self.n_agents = n_agents
         self.max_size = max_size
+        self.state_dim = state_dim
+        self.action_dim = action_dim
         self.ptr = [0 for _ in range(self.n_agents)]
         self.size = [0 for _ in range(self.n_agents)]
 
@@ -237,17 +249,35 @@ class MATD3ReplayBuffer(object):
             self.dones.append(np.zeros([max_size, 1]))
 
     def add(self, observations, actions, next_observations, rewards, dones, flags):
-        # 存入数据的格式：torch.tensor([n_agents, dim])
-        if np.all(np.array(flags)):
-            for agent_i in range(self.n_agents):
+        for agent_i in range(self.n_agents):
+            if flags[agent_i]:
                 self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
                 self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
                 self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
                 self.rewards[agent_i][self.ptr] = rewards[agent_i]
                 self.dones[agent_i][self.ptr] = dones[agent_i]
+            else:
+                self.observations[agent_i][self.ptr] = np.stack(torch.zeros([self.state_dim]))
+                self.actions[agent_i][self.ptr] = np.stack(torch.zeros([self.action_dim]))
+                self.next_observations[agent_i][self.ptr] = np.stack(torch.zeros([self.state_dim]))
+                self.rewards[agent_i][self.ptr] = 0.0
+                self.dones[agent_i][self.ptr] = 1.0  # True --> 1.0
 
-                self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
-                self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+
+            self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+            self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+        # 存入数据的格式：torch.tensor([n_agents, dim])
+        # if np.all(np.array(flags)):
+        #     for agent_i in range(self.n_agents):
+        #         self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
+        #         self.actions[agent_i][self.ptr] = np.stack(actions[agent_i, :])
+        #         self.next_observations[agent_i][self.ptr] = np.stack(next_observations[agent_i, :])
+        #         self.rewards[agent_i][self.ptr] = rewards[agent_i]
+        #         self.dones[agent_i][self.ptr] = dones[agent_i]
+        #
+        #         self.ptr[agent_i] = (self.ptr[agent_i] + 1) % self.max_size
+        #         self.size[agent_i] = min(self.size[agent_i] + 1, self.max_size)
+        # # 下面这种无法保证时间上的一致性
         # for agent_i in range(self.n_agents):
         #     if flags[agent_i]:
         #         self.observations[agent_i][self.ptr] = np.stack(observations[agent_i, :])
@@ -262,7 +292,7 @@ class MATD3ReplayBuffer(object):
     def sample(self, batch_size):
         size = self.max_size
         for agent_i in range(self.n_agents):
-            size = min(size, self.ptr[agent_i])
+            size = min(size, self.size[agent_i])
         index = np.random.choice(size, size=batch_size)  # Randomly sampling
         batch_obs = torch.tensor([self.observations[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
         batch_a = torch.tensor([self.actions[agent_i][index] for agent_i in range(self.n_agents)], dtype=torch.float).to(device)
@@ -276,30 +306,6 @@ class MATD3ReplayBuffer(object):
         return self.size
 
 
-def eval_policy(maddpg):
-    times = 40  # Perform three evaluations and calculate the average
-    evaluate_reward = 0
-    n_agents = 2
-    # seed = 20
-    # torch.manual_seed(seed)
-    # torch.cuda.manual_seed(seed)
-    # np.random.seed(seed)
-    for _ in range(times):
-        env = Env(mode="test")
-        observations = env.reset()
-        dones = [False for i in range(n_agents)]
-        episode_reward = 0
-        while not np.any(np.array(dones)):
-            actions = maddpg.choose_actions(observations=observations)
-            next_observations, rewards, dones, flags = env.step(actions)
-            episode_reward += sum(rewards)
-            observations = next_observations
-        env.close()
-        evaluate_reward += episode_reward
-
-    return evaluate_reward / times
-
-
 if __name__ == "__main__":
 
     starttime = time.time()
@@ -311,8 +317,9 @@ if __name__ == "__main__":
     state_dim = 15
     action_dim = 3
     max_action = 1.0
-    n_agents = 2
-    max_timesteps = 3e5
+    n_agents = 3
+    max_timesteps = 1e6
+    max_train_episodes = 2e4
     start_timesteps = 25e3
     eval_freq = 5e3
     expl_noise = 0.1  # Std of Gaussian exploration noise
@@ -346,6 +353,10 @@ if __name__ == "__main__":
     evaluate_rewards = []
     train_episode_rewards = []
     train_episode_ma_rewards = []
+    train_episode_success_rate = []
+    # train_episode_collision_rate = []
+    train_episode_ma_success_rate = []
+    # train_episode_ma_collision_rate = []
     evaluate_num = 0
     evaluate_freq = 5e3
 
@@ -354,7 +365,9 @@ if __name__ == "__main__":
     episode_timesteps = 0
     episode_num = 0
 
-    for t in range(int(max_timesteps)):
+    t = 0
+    while episode_num < max_train_episodes:
+    # for t in range(int(max_timesteps)):
 
         episode_timesteps += 1
 
@@ -368,6 +381,7 @@ if __name__ == "__main__":
 
         # Perform action
         next_observations, rewards, dones, store_flags = env.step(actions)
+        # True --> 1.0, False-->0.0(即便到达最后一步，也不算)
         done_bools = [float(dones[i]) if episode_timesteps < env._max_episode_steps else 0 for i in range(n_agents)]
 
         replay_buffer.add(observations=observations, actions=actions, rewards=rewards,
@@ -405,18 +419,26 @@ if __name__ == "__main__":
             # print(
             #     f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             train_episode_rewards.append(episode_reward)
+            train_episode_success_rate.append(env.success_count / n_agents)
             if train_episode_ma_rewards:
                 train_episode_ma_rewards.append(0.99 * train_episode_ma_rewards[-1] + 0.01 * episode_reward)  # 移动平均，每100个episode的
+                train_episode_ma_success_rate.append(
+                    0.99 * train_episode_ma_success_rate[-1] + 0.01 * env.success_count / n_agents)
                 print(f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps}  "
                       f"Sum: {episode_reward:.3f}  Avg: {0.99 * train_episode_ma_rewards[-1] + 0.01 * episode_reward:.3f}     "
                       f"Success:{env.success_count}")
             else:
                 train_episode_ma_rewards.append(episode_reward)
-            if (t+1) % evaluate_freq == 0:
+                train_episode_ma_success_rate.append(env.success_count / n_agents)
+            if (episode_num + 1) % 100 == 0:
                 np.save('./eval_reward_train/MATD3/train_reward_MATD3_env_{}_seed_{}.npy'.format(env_name, seed),
                         np.array(train_episode_rewards))
                 np.save('./eval_reward_train/MATD3/train_ma_reward_MATD3_env_{}_seed_{}.npy'.format(env_name, seed),
                         np.array(train_episode_ma_rewards))
+                np.save('./eval_reward_train/MATD3/train_success_MATD3_env_{}_seed_{}.npy'.format(env_name, seed),
+                        np.array(train_episode_success_rate))
+                np.save('./eval_reward_train/MATD3/train_ma_success_MATD3_env_{}_seed_{}.npy'.format(env_name, seed),
+                        np.array(train_episode_ma_success_rate))
             # Reset environment
             env.close()
             env = Env(mode="train")
@@ -425,7 +447,12 @@ if __name__ == "__main__":
             episode_timesteps = 0
             episode_num += 1
 
+        t += 1
     env.close()
+    np.save('./eval_reward_train/MATD3/train_reward_MATD3_env_{}_seed_{}.npy'.format(env_name, seed),
+            np.array(train_episode_rewards))
+    np.save('./eval_reward_train/MATD3/train_ma_reward_MATD3_env_{}_seed_{}.npy'.format(env_name, seed),
+            np.array(train_episode_ma_rewards))
     matd3.save(f"./model_train/MATD3/MATD3_{env_name}")
 
     endtime = time.time()

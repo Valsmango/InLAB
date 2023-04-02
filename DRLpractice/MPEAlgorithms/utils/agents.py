@@ -1,9 +1,9 @@
 from torch import Tensor
 from torch.autograd import Variable
 from torch.optim import Adam
-from .networks import MLPNetwork
-from .misc import hard_update, gumbel_softmax, onehot_from_logits
-from .noise import OUNoise
+from DRLpractice.MPEAlgorithms.utils.networks import MLPNetwork
+from DRLpractice.MPEAlgorithms.utils.misc import hard_update, gumbel_softmax, onehot_from_logits
+from DRLpractice.MPEAlgorithms.utils.noise import OUNoise
 
 class DDPGAgent(object):
     """

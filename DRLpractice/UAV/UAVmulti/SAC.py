@@ -219,10 +219,10 @@ if __name__ == '__main__':
     # env.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    state_dim = 18
+    state_dim = 15
     action_dim = 3
     max_action = 1.0
-    n_agents = 2
+    n_agents = 3
     max_episode_steps = 200  # Maximum number of steps per episode
     print("env={}".format(env_name))
     print("state_dim={}".format(state_dim))
@@ -231,13 +231,18 @@ if __name__ == '__main__':
     print("max_episode_steps={}".format(max_episode_steps))
 
     noise_std = 0.1 * max_action  # the std of Gaussian noise for exploration
-    max_train_steps = 1e6  # Maximum number of training steps
+    max_train_steps = 3e5  # Maximum number of training steps
+    max_train_episodes = 2e4
     random_steps = 25e3  # Take the random actions in the beginning for the better exploration
     evaluate_freq = 5e3  # Evaluate the policy every 'evaluate_freq' steps
     evaluate_num = 0  # Record the number of evaluations
     evaluate_rewards = []  # Record the rewards during the evaluating
     train_episode_rewards = []
     train_episode_ma_rewards = []
+    train_episode_success_rate = []
+    # train_episode_collision_rate = []
+    train_episode_ma_success_rate = []
+    # train_episode_ma_collision_rate = []
     episode_reward = 0
     episode_reward_agents = [0 for _ in range(n_agents)]
     episode_timesteps = 0
@@ -253,7 +258,12 @@ if __name__ == '__main__':
 
     env = Env(mode="train")
     s, done = env.reset(), [False for i in range(n_agents)]
-    for t in range(int(max_train_steps)):
+    episode_reward = 0
+    episode_timesteps = 0
+    episode_num = 0
+    # for t in range(int(max_train_steps)):
+    t = 0
+    while episode_num < max_train_episodes:
 
         episode_timesteps += 1
         if t < random_steps:  # Take random actions in the beginning for the better exploration
@@ -279,19 +289,27 @@ if __name__ == '__main__':
             # print(
             #     f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             train_episode_rewards.append(episode_reward)
+            train_episode_success_rate.append(env.success_count / n_agents)
             if train_episode_ma_rewards:
                 train_episode_ma_rewards.append(0.99 * train_episode_ma_rewards[-1] + 0.01 * episode_reward)  # 移动平均，每100个episode的
+                train_episode_ma_success_rate.append(
+                    0.99 * train_episode_ma_success_rate[-1] + 0.01 * env.success_count / n_agents)
                 print(f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps}  "
                       f"Reward: {episode_reward_agents[0]:.3f} {episode_reward_agents[1]:.3f}  Sum: {episode_reward:.3f}  "
                       f"Avg: {0.99 * train_episode_ma_rewards[-1] + 0.01 * episode_reward:.3f}     "
                       f"Success:{env.success_count}")
             else:
                 train_episode_ma_rewards.append(episode_reward)
-            if (t+1) % evaluate_freq == 0:
+                train_episode_ma_success_rate.append(env.success_count / n_agents)
+            if (episode_num + 1) % 100 == 0:
                 np.save('./eval_reward_train/SAC/train_reward_SAC_env_{}_seed_{}.npy'.format(env_name, seed),
                         np.array(train_episode_rewards))
                 np.save('./eval_reward_train/SAC/train_ma_reward_SAC_env_{}_seed_{}.npy'.format(env_name, seed),
                         np.array(train_episode_ma_rewards))
+                np.save('./eval_reward_train/SAC/train_success_SAC_env_{}_seed_{}.npy'.format(env_name, seed),
+                        np.array(train_episode_success_rate))
+                np.save('./eval_reward_train/SAC/train_ma_success_SAC_env_{}_seed_{}.npy'.format(env_name, seed),
+                        np.array(train_episode_ma_success_rate))
             # Reset environment
             env.close()
             env = Env(mode="train")
@@ -300,7 +318,7 @@ if __name__ == '__main__':
             episode_reward_agents = [0 for _ in range(n_agents)]
             episode_timesteps = 0
             episode_num += 1
-
+        t += 1
     env.close()
     for i in range(n_agents):
         agent[i].save(f"./model_train/SAC/agent_{i}_SAC_{env_name}")
