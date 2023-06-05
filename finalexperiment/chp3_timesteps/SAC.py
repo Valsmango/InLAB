@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.distributions import Normal
 from finalexperiment.chp3_timesteps.env.env import Env
 import os
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -134,7 +135,7 @@ class SAC(object):
             self.alpha = self.log_alpha.exp()
             self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=self.lr)
         else:
-            self.alpha = 0.2
+            self.alpha = 0.35
 
         self.actor = Actor(state_dim, action_dim, self.hidden_width, max_action).to(device)
         self.critic = Critic(state_dim, action_dim, self.hidden_width).to(device)
@@ -253,7 +254,7 @@ if __name__ == '__main__':
     train_episode_collision_rate = []
     time_records = []
 
-    for t in range(int(max_train_steps)):
+    for t in tqdm(range(int(max_train_steps))):
         episode_timesteps += 1
 
         if t < random_steps:  # Take the random actions in the beginning for the better exploration
@@ -274,8 +275,8 @@ if __name__ == '__main__':
             agent.learn(replay_buffer)
 
         if done:
-            print(
-                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+            # print(
+            #     f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             train_episode_rewards.append(episode_reward)
             time_records.append(t)
             if category == 1:

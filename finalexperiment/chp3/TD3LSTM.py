@@ -258,7 +258,7 @@ class TD3LSTM(object):
 
     def choose_action(self, s, h, c):
         # s = torch.unsqueeze(s, 0)   # s = torch.FloatTensor(s.reshape(1, -1))
-        s = torch.FloatTensor(s.reshape(1, -1)).unsqueeze(0).to(device)
+        s = torch.FloatTensor(s.reshape(1, -1)).unsqueeze(0).to(device) # 输入的s【12】，然后变成了【1，1，12】，而h【1，1，256】
         h = torch.FloatTensor(h).to(device)
         c = torch.FloatTensor(c).to(device)
         a, h, c = self.actor(s, h,  c)

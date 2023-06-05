@@ -4,9 +4,10 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 import copy
-from finalexperiment.chp4_timesteps.uav3.env.env import Env
+from finalexperiment.chp4_timesteps.uav2.env.env import Env
 import os
 import time
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -212,7 +213,7 @@ if __name__ == '__main__':
     max_episode_steps = 200  # Maximum number of steps per episode
 
     noise_std = 0.1 * max_action  # the std of Gaussian noise for exploration
-    max_train_steps = 3e6  # Maximum number of training steps
+    max_train_steps = 4e6  # Maximum number of training steps
     random_steps = 25e3  # Take the random actions in the beginning for the better exploration
     evaluate_freq = 5e3  # Evaluate the policy every 'evaluate_freq' steps
     max_train_episodes = 2e4
@@ -228,7 +229,7 @@ if __name__ == '__main__':
     env = Env()
     s, done = env.reset(), [False for i in range(n_agents)]
 
-    # episode_reward_agents = [0 for _ in range(n_agents)]
+    episode_reward_agents = [0 for _ in range(n_agents)]
     train_episode_rewards = []
     episode_reward = 0.
     episode_timesteps = 0
@@ -236,7 +237,7 @@ if __name__ == '__main__':
     train_episode_success_rate = []
     time_records = []
 
-    for t in range(int(max_train_steps)):
+    for t in tqdm(range(int(max_train_steps))):
 
         episode_timesteps += 1
 
@@ -261,8 +262,8 @@ if __name__ == '__main__':
                 agent[i].learn(replay_buffer[i])
 
         if np.all(np.array(done)):
-            print(
-                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+            # print(
+            #     f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             time_records.append(t)
             train_episode_rewards.append(episode_reward)
             train_episode_success_rate.append(env.success_count/n_agents)
@@ -270,7 +271,7 @@ if __name__ == '__main__':
                 np.save(f'./reward_train/{model_name}/{env_name}/timestep_seed_{seed}.npy', np.array(time_records))
                 np.save(f'./reward_train/{model_name}/{env_name}/reward_seed_{seed}.npy', np.array(train_episode_rewards))
                 np.save(f'./reward_train/{model_name}/{env_name}/success_seed_{seed}.npy', np.array(train_episode_success_rate))
-                for i in n_agents:
+                for i in range(n_agents):
                     np.save(f'./reward_train/{model_name}/{env_name}/agent_{i}_reward_seed_{seed}.npy', np.array(episode_reward_agents[i]))
 
             # Reset environment
@@ -281,6 +282,10 @@ if __name__ == '__main__':
             episode_reward_agents = [0. for _ in range(n_agents)]
             episode_timesteps = 0
             episode_num += 1
+
+            if (episode_num + 1) % 5000 == 0:
+                for i in range(n_agents):
+                    agent[i].save(f"./model_train/{model_name}/{env_name}/agent_{i}_{model_name}")
 
 
     env.close()

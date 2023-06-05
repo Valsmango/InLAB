@@ -2,10 +2,11 @@
 from finalexperiment.chp3_timesteps.env.eval_env import EvalEnv
 from finalexperiment.chp3_timesteps.DDPG import DDPG
 from finalexperiment.chp3_timesteps.SAC import SAC
-from finalexperiment.chp3_timesteps.SACLSTM import SACLSTM
+# from finalexperiment.chp3_timesteps.SACLSTM import SACLSTM
 from finalexperiment.chp3_timesteps.TD3 import TD3
 from finalexperiment.chp3_timesteps.TD3LSTM import TD3LSTM
-from finalexperiment.chp3_timesteps.TD3LSTMATT import TD3LSTMATT
+# from finalexperiment.chp3_timesteps.TD3LSTMATT import TD3LSTMATT
+# from finalexperiment.chp3_timesteps.TD3LSTM_buffer import TD3LSTM
 import torch
 import matplotlib.pyplot as plt
 import time
@@ -27,12 +28,12 @@ def run_model(env_name, policy_name):
         agent = TD3(state_dim, action_dim, max_action)
     elif policy_name == "SAC":
         agent = SAC(state_dim, action_dim, max_action)
-    elif policy_name == "SAC_LSTM":
-        agent = SACLSTM(batch_size, state_dim, action_dim, max_action)
+    # elif policy_name == "SAC_LSTM":
+    #     agent = SACLSTM(batch_size, state_dim, action_dim, max_action)
     elif policy_name == "TD3_LSTM" or policy_name == "TD3_LSTM_BUF":
         agent = TD3LSTM(batch_size, state_dim, action_dim, max_action)
-    elif policy_name == "TD3_LSTM_ATT":
-        agent = TD3LSTMATT(batch_size, state_dim, action_dim, max_action)
+    # elif policy_name == "TD3_LSTM_ATT":
+    #     agent = TD3LSTMATT(batch_size, state_dim, action_dim, max_action)
 
     agent.load(f"./model_train/{policy_name}/{env_name}/{policy_name}")
 
@@ -56,8 +57,8 @@ def run_model(env_name, policy_name):
         elif policy_name == "TD3_LSTM" or policy_name == "TD3_LSTM_ATT" \
                 or policy_name == "TD3_LSTM_BUF":
             a, h, c = agent.choose_action(s, h, c)
-        elif policy_name == "SAC_LSTM":
-            a, h, c = agent.choose_action(s, h, c, deterministic=True)
+        # elif policy_name == "SAC_LSTM":
+        #     a, h, c = agent.choose_action(s, h, c, deterministic=True)
         s_, r, done, category = eval_env.step(a)
         s = s_
         reward += r
@@ -88,12 +89,12 @@ def test_model(env_name, policy_name):
         agent = TD3(state_dim, action_dim, max_action)
     elif policy_name == "SAC":
         agent = SAC(state_dim, action_dim, max_action)
-    elif policy_name == "SAC_LSTM":
-        agent = SACLSTM(batch_size, state_dim, action_dim, max_action)
+    # elif policy_name == "SAC_LSTM":
+    #     agent = SACLSTM(batch_size, state_dim, action_dim, max_action)
     elif policy_name == "TD3_LSTM" or policy_name == "TD3_LSTM_BUF":
         agent = TD3LSTM(batch_size, state_dim, action_dim, max_action)
-    elif policy_name == "TD3_LSTM_ATT":
-        agent = TD3LSTMATT(batch_size, state_dim, action_dim, max_action)
+    # elif policy_name == "TD3_LSTM_ATT":
+    #     agent = TD3LSTMATT(batch_size, state_dim, action_dim, max_action)
 
     agent.load(f"./model_train/{policy_name}/{env_name}/{policy_name}")
 
@@ -118,8 +119,8 @@ def test_model(env_name, policy_name):
             elif policy_name == "TD3_LSTM" or policy_name == "TD3_LSTM_ATT" \
                     or policy_name == "TD3_LSTM_BUF":
                 a, h, c = agent.choose_action(s, h, c)
-            elif policy_name == "SAC_LSTM":
-                a, h, c = agent.choose_action(s, h, c, deterministic=True)
+            # elif policy_name == "SAC_LSTM":
+            #     a, h, c = agent.choose_action(s, h, c, deterministic=True)
 
             s_, r, done, category = eval_env.step(a)
             s = s_
@@ -199,12 +200,44 @@ if __name__ == '__main__':
     # success times:536    collision times:447      path length:6643.250147191788      path delay:1215.0789834542163
     # success path length:7483.951626724442      success path delay:128.7784210628361
 
+
+    ################################################## 论文中##############################
+    # TD3：
+    # Dynamic训练 + Dynamic测试 + 随机：
+    # success times:936    collision times:53      path length:7543.2759700825145      path delay:335.43926489515076       success path length:7769.222374264786      success path delay:133.68014600698424
+    # Dynamic训练 + Static测试 + 随机：
+    # success times:459    collision times:472      path length:6582.889022554074      path delay:1355.7245517194795       success path length:7573.486867145752      success path delay:133.60430655379733
+
+    # LSTM - TD3：
+    # Dynamic训练 + Dynamic测试 + 随机：
+    # success times:925    collision times:47      path length:7583.8422399943165      path delay:210.08442479063902       success path length:7719.622765636671      success path delay:80.42791013985105
+    # Dynamic训练 + Static测试 + 随机：
+    # success times:452    collision times:524      path length:6281.693246542169      path delay:1535.5276832125485       success path length:7384.1353743438685      success path delay:87.25430183964961
+
+    # R - TD3：
+    # Dynamic训练 + Dynamic测试 + 随机：
+    # success times:945    collision times:52      path length:7524.629065672756      path delay:251.17579846780365       success path length:7669.456087352533      success path delay:105.97213037488983
+    # Dynamic训练 + Static测试 + 随机：
+    # success times:537    collision times:453      path length:6474.030001823263      path delay:1340.5585570957608       success path length:7472.4595830492135      success path delay:110.89567497412887
+
+    # SAC
+    # Dynamic训练 + Dynamic测试 + 随机：
+    # success times:972    collision times:21      path length:7803.768390604876      path delay:202.36754998898445       success path length:7878.444622188662      success path delay:128.4804503166684
+    # Dynamic训练 + Static测试 + 随机：
+    # success times:514    collision times:458      path length:6658.022226410264      path delay:1216.771754661763       success path length:7613.356938600244      success path delay:124.91264443960202
+
+    # DDPG
+    # Dynamic训练 + Dynamic测试 + 随机：
+    # success times:521    collision times:58      path length:8414.069348123197      path delay:496.93690025572874       success path length:8284.344332349707      success path delay:136.2512277326196
+    # Dynamic训练 + Static测试 + 随机：
+    # success times:173    collision times:402      path length:6785.7475760726975      path delay:1647.3613847138413       success path length:7791.88026586382      success path delay:140.33828448181703
+
     seed = 20
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     env_name = "DynamicEnv"
-    policy_name = "TD3_LSTM_ATT"
+    policy_name = "TD3"
 
     # 表格数据
     success, collision, path_len, path_delay, success_path_len, success_path_delay = test_model(env_name, policy_name)
@@ -212,10 +245,10 @@ if __name__ == '__main__':
           f"path length:{path_len}      path delay:{path_delay}       "
           f"success path length:{success_path_len}      success path delay:{success_path_delay}")
 
-    # 用于画图
-    reward, path_len, path_delay, success_path_len, success_path_delay = run_model(env_name, policy_name)
-    print(f"reward:{reward}    path length:{path_len}      path delay:{path_delay}       "
-          f"success path length:{success_path_len}      success path delay:{success_path_delay}")
+    # # 用于画图
+    # reward, path_len, path_delay, success_path_len, success_path_delay = run_model(env_name, policy_name)
+    # print(f"reward:{reward}    path length:{path_len}      path delay:{path_delay}       "
+    #       f"success path length:{success_path_len}      success path delay:{success_path_delay}")
 
 
 

@@ -8,6 +8,9 @@
     <file url="file://$PROJECT_DIR$/DRLpractice/DDPGdemo/model" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/DRLpractice/DDPGdemo/utils.py" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/DRLpractice/DDPGdemo/备注.txt" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/finalexperiment/chp4_timesteps/uav2/TD3_LSTM_BUF.py" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/finalexperiment/chp4_timesteps/uav2/env/env.py" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/grad_thesis_code/UAV_multi_2/env/env.py" charset="UTF-8" />
     <file url="PROJECT" charset="GBK" />
   </component>
 </project>

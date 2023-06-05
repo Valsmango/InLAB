@@ -174,11 +174,7 @@ class Env(object):
                         uav_dis = np.sqrt((self.uav_state[i][0] - self.uav_state[j][0]) ** 2 +
                                           (self.uav_state[i][1] - self.uav_state[j][1]) ** 2 +
                                           (self.uav_state[i][2] - self.uav_state[j][2]) ** 2)
-                        # if uav_dis < self.min_range:
-                        #     ################### 斥力计算方式1 ###################
-                        #     urep = - 1 / 2 * self.rep * (1 / uav_dis - 1 / self.min_range)
-                        #     reward[i] += urep
-                        #     reward[j] += urep
+
 
                             # #################### 斥力计算方式2 ###################
                             # urep = -np.exp(- uav_hori_dis / 100) -np.exp(- uav_vert_dis)
@@ -187,12 +183,19 @@ class Env(object):
                             # reward[j] += urep
 
                         if uav_hori_dis < self.min_sep_hori and uav_vert_dis < self.min_sep_vert:
-                            # reward[i] += -100
-                            # reward[j] += -100
-                            done[i] = True
-                            done[j] = True
+                            if done[i] == False:
+                                reward[i] += -100
+                                done[i] = True
+                            if done[j] == False:
+                                reward[j] += -100
+                                done[j] = True
                             self.continue_flag[i] = False
                             self.continue_flag[j] = False
+                        elif uav_dis < self.min_range:
+                            ################### 斥力计算方式1 ###################
+                            urep = - 1 / 2 * self.rep * (1 / uav_dis - 1 / self.min_range)
+                            reward[i] += urep
+                            reward[j] += urep
 
                     j = j + 1
 
@@ -206,8 +209,8 @@ class Env(object):
                 tar_dis_vert[i] = np.abs(self.uav_state[i][2] - self.target[i][2])
 
                 ################### 引力计算方式1 ###################
-                # uatt = - self.att * np.array(tar_dis[i])
-                # reward[i] += uatt
+                uatt = - self.att * np.array(tar_dis[i])
+                reward[i] += uatt
 
                 # # #################### 引力计算方式2 ###################
                 # uatt = np.exp(- tar_dis_hori[i]/1000) + np.exp(- tar_dis_vert[i]/60)
@@ -215,10 +218,10 @@ class Env(object):
 
                 # ################### 引力计算方式3 ###################
                 # reward[i] += (pre_tar_dis[i] - tar_dis[i])/100  # 处理目标不可达
-                reward[i] += (pre_tar_dis_hori[i] - tar_dis_hori[i]) / 100 + \
-                             (pre_tar_dis_vert[i] - tar_dis_vert[i]) / 30
-                cur_v = np.sqrt(self.uav_state[i][3] ** 2 + self.uav_state[i][4] ** 2 + self.uav_state[i][5] ** 2)
-                reward[i] -= np.abs(pre_v - cur_v)/100
+                # reward[i] += (pre_tar_dis_hori[i] - tar_dis_hori[i]) / 100 + \
+                #              (pre_tar_dis_vert[i] - tar_dis_vert[i]) / 30
+                # cur_v = np.sqrt(self.uav_state[i][3] ** 2 + self.uav_state[i][4] ** 2 + self.uav_state[i][5] ** 2)
+                # reward[i] -= np.abs(pre_v - cur_v)/100
 
                 # reward[i] += -0.5  # 这一信息让其快速到达终点
 

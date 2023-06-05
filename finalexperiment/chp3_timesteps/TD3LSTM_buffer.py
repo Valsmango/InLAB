@@ -14,6 +14,7 @@ import collections
 import os
 import time
 import math
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -107,7 +108,6 @@ class Critic(nn.Module):  # According to (s,a), directly calculate Q(s,a)
         if not hasattr(self, '_flattened'):
             self.l3.flatten_parameters()
             setattr(self, '_flattened', True)
-        # s_a = torch.cat([s, a], 1)
         s_a = torch.cat([s, a], 2)
         q1 = F.relu(self.l1(s_a))
         q1 = F.relu(self.l2(q1))
@@ -127,18 +127,16 @@ class EpisodeMemory():
         self.random_update = random_update  # if False, sequential update
         self.max_epi_num = max_epi_num
         self.max_epi_len = max_epi_len
-        self.failure_size = int(self.max_epi_num * 0.5)
-        self.success_size = int(self.max_epi_num - self.failure_size)
         self.batch_size = batch_size
         self.lookup_step = lookup_step
-
-        self.avg_reward = 0.
 
         if (random_update is False) and (self.batch_size > 1):
             sys.exit(
                 'It is recommend to use 1 batch for sequential update, if you want, erase this code block and modify code')
 
-        # self.memory = collections.deque(maxlen=self.max_epi_num)
+        self.failure_size = int(self.max_epi_num * 0.5)
+        self.success_size = int(self.max_epi_num - self.failure_size)
+        self.avg_reward = 0.
         self.success_memory = collections.deque(maxlen=self.success_size)
         self.success_count = 0
         self.failure_memory = collections.deque(maxlen=self.failure_size)
@@ -146,14 +144,7 @@ class EpisodeMemory():
         self.total_count = 0
 
     def put(self, episode, category, episode_reward):
-        # if category == 1:
-        #     self.success_memory.append(episode)
-        #     self.success_count = min(self.success_count + 1, self.success_size)
-        # elif category == 2:
-        #     self.failure_memory.append(episode)
-        #     self.failure_count = min(self.failure_count + 1, self.failure_size)
-        # self.memory.append(episode)
-
+        # category用于记录该经验为成功经验or失败经验，但是将经验池分为成功、失败效果不行
         if episode_reward > self.avg_reward:
             self.success_memory.append(episode)
             self.success_count = min(self.success_count + 1, self.success_size)
@@ -163,6 +154,7 @@ class EpisodeMemory():
         self.total_count += 1
         self.avg_reward += (episode_reward - self.avg_reward) / self.total_count
 
+
     def _pre_sample(self, ratio):
         sampled_buffer = []
 
@@ -170,17 +162,6 @@ class EpisodeMemory():
         if self.random_update:  # Random upodate
             ############
             sampled_episodes = []
-            # random_count = self.batch_size
-            # success_count = int(self.batch_size * ratio[0])
-            # failure_count = int(self.batch_size * ratio[1])
-            # if success_count > 0 and success_count < self.success_count:
-            #     sampled_episodes.extend(random.sample(self.success_memory, success_count))
-            #     random_count -= success_count
-            # if failure_count > 0 and failure_count < self.failure_count:
-            #     sampled_episodes.extend(random.sample(self.failure_memory, failure_count))
-            #     random_count -= failure_count
-            # sampled_episodes.extend(random.sample(self.memory, random_count))
-
             success_num = int(self.batch_size * ratio[0])
             failure_num = self.batch_size
             if success_num > 0:
@@ -311,7 +292,7 @@ class TD3LSTM(object):
     def learn(self, relay_buffer):
         self.actor_pointer += 1
 
-        buffer_ratio = [1.0, 0.0]
+        buffer_ratio = [0.6, 0.0]
         batch_s, batch_a, batch_r, batch_s_, batch_dw = relay_buffer.sample(self.batch_size, buffer_ratio)  # Sample a batch
 
         # Compute the target Q
@@ -411,7 +392,7 @@ if __name__ == '__main__':
     max_episode_steps = 200  # Maximum number of steps per episode
 
     noise_std = 0.1 * max_action  # the std of Gaussian noise for exploration
-    max_train_steps = 1e6  # Maximum number of training steps
+    max_train_steps = 2e6  # Maximum number of training steps
     random_steps = 25e3  # Take the random actions in the beginning for the better exploration
 
     batch_size = 64  # random --> 64, sequential --> 1
@@ -440,7 +421,8 @@ if __name__ == '__main__':
     train_episode_collision_rate = []
     time_records = []
 
-    for t in range(int(max_train_steps)):
+    for t in tqdm(range(int(max_train_steps))):
+    # for t in range(int(max_train_steps)):
         episode_timesteps += 1
 
         if t < random_steps:  # Take the random actions in the beginning for the better exploration
@@ -463,8 +445,8 @@ if __name__ == '__main__':
             agent.learn(replay_buffer)
 
         if done:
-            print(
-                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+            # print(
+            #     f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
             time_records.append(t)
             train_episode_rewards.append(episode_reward)
             if category == 1:

@@ -26,7 +26,7 @@ class Env(object):
         self.min_range = 1000
         self.viewer = None
         self._max_episode_steps = 200
-        self.marker_list = ['x', '.', '|']
+        self.marker_list = ['x', '.', '.']
         self.color_list = [(46/255, 139/255, 87/255), (106/255, 90/255, 205/255), (178/255, 34/255, 34/255)]
 
         self.max_action = np.array([10.0, 10.0, 2.0])
@@ -322,36 +322,68 @@ class Env(object):
         plt.show()
 
     def _show_xy_path(self):
+        # for i in range(self.n_uav):
+        #     path_len = len(self.path[i])
+        #     x = [self.path[i][j][0] / 1000 for j in range(path_len)]
+        #     y = [self.path[i][j][1] / 1000 for j in range(path_len)]
+        #     # plt.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000],
+        #     #             color='green', alpha=0.7, label=f"UAV {i + 1}")
+        #     plt.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000],
+        #                 color=self.color_list[i], alpha=0.7, label=f"UAV {i + 1}")
+        #     # for j in range(path_len - 1):
+        #     #     plt.scatter([self.path[i][j][0] / 1000], [self.path[i][j][1] / 1000],
+        #     #                 color=self.color_list[i], alpha=0.3, marker=self.marker_list[2])
+        #     plt.plot(x, y, color=self.color_list[i])
+        #     plt.plot([self.uav_init_state[i][0] / 1000, self.target[i][0] / 1000],
+        #              [self.uav_init_state[i][1] / 1000, self.target[i][1] / 1000],
+        #              color=self.color_list[i], alpha=0.3, linestyle=':')
+        #
+        #     circle1 = plt.Circle(xy=([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000]),
+        #                          radius=self.min_sep_hori / 1000, linestyle=':', color=self.color_list[i],  fill=False)
+        #     plt.gca().add_patch(circle1)
+        #     circle2 = plt.Circle(xy=(2500 / 1000, 2500 / 1000), radius=2500 / 1000, linestyle=':', color='black',
+        #                          fill=False)
+        #     plt.gca().add_patch(circle2)
+        #
+        # plt.axis('equal')
+        # # plt.title("2D path - xy")
+        # plt.xlabel("x (km)")
+        # plt.ylabel("y (km)")
+        # plt.xlim(0, 5)
+        # plt.ylim(0, 5)
+        # plt.legend()
+        # plt.show()
 
+        plt.grid(linestyle='--', linewidth=0.5, alpha=0.4)
         for i in range(self.n_uav):
             path_len = len(self.path[i])
-            x = [self.path[i][j][0] / 1000 for j in range(path_len)]
-            y = [self.path[i][j][1] / 1000 for j in range(path_len)]
+            x = [self.path[i][j][0] for j in range(path_len)]
+            y = [self.path[i][j][1] for j in range(path_len)]
             # plt.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000],
             #             color='green', alpha=0.7, label=f"UAV {i + 1}")
-            plt.scatter([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000],
+            plt.scatter([self.path[i][path_len - 1][0]], [self.path[i][path_len - 1][1]],
                         color=self.color_list[i], alpha=0.7, label=f"UAV {i + 1}")
-            # for j in range(path_len - 1):
-            #     plt.scatter([self.path[i][j][0] / 1000], [self.path[i][j][1] / 1000],
-            #                 color=self.color_list[i], alpha=0.3, marker=self.marker_list[2])
+            for j in range(path_len - 1):
+                plt.scatter([self.path[i][j][0]], [self.path[i][j][1]],
+                            color=self.color_list[i], alpha=0.3, marker=self.marker_list[2])
             plt.plot(x, y, color=self.color_list[i])
-            plt.plot([self.uav_init_state[i][0] / 1000, self.target[i][0] / 1000],
-                     [self.uav_init_state[i][1] / 1000, self.target[i][1] / 1000],
+            plt.plot([self.uav_init_state[i][0], self.target[i][0]],
+                     [self.uav_init_state[i][1], self.target[i][1]],
                      color=self.color_list[i], alpha=0.3, linestyle=':')
 
-            circle1 = plt.Circle(xy=([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000]),
-                                 radius=self.min_sep_hori / 1000, linestyle=':', color=self.color_list[i],  fill=False)
+            circle1 = plt.Circle(xy=([self.path[i][path_len - 1][0]], [self.path[i][path_len - 1][1]]),
+                                 radius=self.min_sep_hori, linestyle=':', color=self.color_list[i], fill=False)
             plt.gca().add_patch(circle1)
-            circle2 = plt.Circle(xy=(2500 / 1000, 2500 / 1000), radius=2500 / 1000, linestyle=':', color='black',
+            circle2 = plt.Circle(xy=(2500, 2500), radius=2500, linestyle=':', color='black',
                                  fill=False)
             plt.gca().add_patch(circle2)
 
         plt.axis('equal')
         # plt.title("2D path - xy")
-        plt.xlabel("x (km)")
-        plt.ylabel("y (km)")
-        plt.xlim(0, 5)
-        plt.ylim(0, 5)
+        plt.xlabel("X (m)")
+        plt.ylabel("Y (m)")
+        plt.xlim(-1000, 6000)
+        plt.ylim(0, 5000)
         plt.legend()
         plt.show()
 

@@ -2,7 +2,7 @@
 import time
 import pyglet
 import numpy as np
-from gym.utils import seeding
+# from gym.utils import seeding
 import matplotlib.pyplot as plt
 import matplotlib.axes as ax
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FuncFormatter
@@ -12,6 +12,7 @@ import torch
 '''
 simple env
 '''
+color_list = [(46/255, 139/255, 87/255), (106/255, 90/255, 205/255), (178/255, 34/255, 34/255)]
 
 
 class Env(object):
@@ -169,7 +170,16 @@ class Env(object):
                         uav_dis = np.sqrt((self.uav_state[i][0] - self.uav_state[j][0]) ** 2 +
                                           (self.uav_state[i][1] - self.uav_state[j][1]) ** 2 +
                                           (self.uav_state[i][2] - self.uav_state[j][2]) ** 2)
-                        if uav_dis < self.min_range:
+                        if uav_hori_dis < self.min_sep_hori and uav_vert_dis < self.min_sep_vert:
+                            if done[i] == False:
+                                reward[i] += -100
+                                done[i] = True
+                            if done[j] == False:
+                                reward[j] += -100
+                                done[j] = True
+                            self.continue_flag[i] = False
+                            self.continue_flag[j] = False
+                        elif uav_dis < self.min_range:
                             ################### 斥力计算方式1 ###################
                             urep = - 1 / 2 * self.rep * (1 / uav_dis - 1 / self.min_range)
                             reward[i] += urep
@@ -179,14 +189,6 @@ class Env(object):
                             # urep = -np.exp(- uav_hori_dis / 100) -np.exp(- uav_vert_dis)
                             # reward[i] += urep
                             # reward[j] += urep
-
-                        if uav_hori_dis < self.min_sep_hori and uav_vert_dis < self.min_sep_vert:
-                            reward[i] += -100
-                            reward[j] += -100
-                            done[i] = True
-                            done[j] = True
-                            self.continue_flag[i] = False
-                            self.continue_flag[j] = False
 
                     j = j + 1
 
@@ -243,10 +245,10 @@ class Env(object):
 
         return torch.Tensor(return_state), torch.Tensor(reward), done, store_flag
 
-    def render(self):
-        if self.viewer is None:
-            self.viewer = Viewer(self.uav_state, self.target)
-        self.viewer.render()
+    # def render(self):
+    #     if self.viewer is None:
+    #         self.viewer = Viewer(self.uav_state, self.target)
+    #     self.viewer.render()
 
     def sample_action(self):
         # # Mean
@@ -258,9 +260,9 @@ class Env(object):
             return_action.append([random_delta_v_x, random_delta_v_y, random_delta_v_z])
         return torch.Tensor(return_action)
 
-    def seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
+    # def seed(self, seed=None):
+    #     self.np_random, seed = seeding.np_random(seed)
+    #     return [seed]
 
     def show_path(self):
         self._show_3D_path()
@@ -322,12 +324,12 @@ class Env(object):
                      [self.uav_init_state[i][1] / 1000, self.target[i][1] / 1000],
                      color='green', alpha=0.3, linestyle=':')
 
-            circle1 = plt.Circle(xy=([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000]),
-                                 radius=self.min_sep_hori / 1000, linestyle=':', color='green', fill=False)
-            plt.gca().add_patch(circle1)
-            circle2 = plt.Circle(xy=(2500 / 1000, 2500 / 1000), radius=2500 / 1000, linestyle=':', color='black',
-                                 fill=False)
-            plt.gca().add_patch(circle2)
+            # circle1 = plt.Circle(xy=([self.path[i][path_len - 1][0] / 1000], [self.path[i][path_len - 1][1] / 1000]),
+            #                      radius=self.min_sep_hori / 1000, linestyle=':', color='green', fill=False)
+            # plt.gca().add_patch(circle1)
+            # circle2 = plt.Circle(xy=(2500 / 1000, 2500 / 1000), radius=2500 / 1000, linestyle=':', color='black',
+            #                      fill=False)
+            # plt.gca().add_patch(circle2)
 
         plt.axis('equal')
         plt.title("2D path - xy")
@@ -353,12 +355,12 @@ class Env(object):
                      [self.uav_init_state[i][2] / 1000, self.target[i][2] / 1000],
                      color='green', alpha=0.3, linestyle=':')
 
-            rectangle1 = plt.Rectangle(xy=(self.path[i][path_len - 1][0] / 1000 - self.min_sep_hori / 1000,
-                                           self.path[i][path_len - 1][2] / 1000 - self.min_sep_vert / 1000),
-                                       width=self.min_sep_hori * 2 / 1000,
-                                       height=self.min_sep_vert * 2 / 1000,
-                                       color='green', linestyle=':', fill=False)
-            plt.gca().add_patch(rectangle1)
+            # rectangle1 = plt.Rectangle(xy=(self.path[i][path_len - 1][0] / 1000 - self.min_sep_hori / 1000,
+            #                                self.path[i][path_len - 1][2] / 1000 - self.min_sep_vert / 1000),
+            #                            width=self.min_sep_hori * 2 / 1000,
+            #                            height=self.min_sep_vert * 2 / 1000,
+            #                            color='green', linestyle=':', fill=False)
+            # plt.gca().add_patch(rectangle1)
 
         plt.title("2D path - xz")
         plt.xlabel("x (km)")
@@ -369,43 +371,43 @@ class Env(object):
         plt.show()
 
 
-class Viewer(pyglet.window.Window):
-    def __init__(self, uav_state, target):
-        super(Viewer, self).__init__(width=500, height=500, resizable=False, caption='single-agent',
-                                     vsync=False)
-        pyglet.gl.glClearColor(1, 1, 1, 1)
-        self.uav_state = uav_state
-        self.uav = []
-        for i in range(len(self.uav_state)):
-            cur_uav = pyglet.shapes.Circle(self.uav_state[i][0] / 10, self.uav_state[i][1] / 10, 3,
-                                           color=(1, 100, 1))
-            self.uav.append(cur_uav)
-        self.target = target
-        self.tar = []
-        for i in range(len(self.uav_state)):
-            cur_tar = pyglet.shapes.Circle(self.target[i][0] / 10, self.target[i][1] / 10, 3, color=(1, 200, 1))
-            self.tar.append(cur_tar)
-
-    def render(self):
-        self._update_uav()
-        self.switch_to()
-        self.dispatch_events()
-        self.dispatch_event('on_draw')
-        self.flip()
-
-    def on_draw(self):
-        self.clear()
-        for uav in self.uav:
-            uav.draw()
-        for tar in self.tar:
-            tar.draw()
-
-    def _update_uav(self):
-        temp_uav = []
-        for i in range(len(self.uav)):
-            temp_uav.append(pyglet.shapes.Circle(self.uav_state[i][0] / 10, self.uav_state[i][1] / 10, 3,
-                                                 color=(1, 100, 1)))
-        self.uav = temp_uav
+# class Viewer(pyglet.window.Window):
+#     def __init__(self, uav_state, target):
+#         super(Viewer, self).__init__(width=500, height=500, resizable=False, caption='single-agent',
+#                                      vsync=False)
+#         pyglet.gl.glClearColor(1, 1, 1, 1)
+#         self.uav_state = uav_state
+#         self.uav = []
+#         for i in range(len(self.uav_state)):
+#             cur_uav = pyglet.shapes.Circle(self.uav_state[i][0] / 10, self.uav_state[i][1] / 10, 3,
+#                                            color=(1, 100, 1))
+#             self.uav.append(cur_uav)
+#         self.target = target
+#         self.tar = []
+#         for i in range(len(self.uav_state)):
+#             cur_tar = pyglet.shapes.Circle(self.target[i][0] / 10, self.target[i][1] / 10, 3, color=(1, 200, 1))
+#             self.tar.append(cur_tar)
+#
+#     def render(self):
+#         self._update_uav()
+#         self.switch_to()
+#         self.dispatch_events()
+#         self.dispatch_event('on_draw')
+#         self.flip()
+#
+#     def on_draw(self):
+#         self.clear()
+#         for uav in self.uav:
+#             uav.draw()
+#         for tar in self.tar:
+#             tar.draw()
+#
+#     def _update_uav(self):
+#         temp_uav = []
+#         for i in range(len(self.uav)):
+#             temp_uav.append(pyglet.shapes.Circle(self.uav_state[i][0] / 10, self.uav_state[i][1] / 10, 3,
+#                                                  color=(1, 100, 1)))
+#         self.uav = temp_uav
 
 
 if __name__ == "__main__":
@@ -414,7 +416,7 @@ if __name__ == "__main__":
 
     rewards = 0.0
     for i in range(48):
-        env.render()
+        # env.render()
         time.sleep(0.1)
         action = env.sample_action()
         # action = torch.tensor([[0,0,0], [0,0,0]])

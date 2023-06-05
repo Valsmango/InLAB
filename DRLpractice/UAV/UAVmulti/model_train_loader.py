@@ -175,21 +175,21 @@ if __name__ == "__main__":
     # model_eval_MADDPG(policy, n_agents)
 
     # ########################## TD3 ###############################
-    # state_dim = 15
-    # action_dim = 3
-    # max_action = 1.0
-    # n_agents = 3
-    # policy_name = "TD3"
-    # env_name = "MAStandardEnv"
-    # policy = []
-    # policy = [TD3(state_dim, action_dim, max_action) for _ in range(n_agents)]
-    # for i in range(n_agents):
-    #     file_name = f"model_train/TD3/agent_{i}_{policy_name}_{env_name}"
-    #     policy[i].load(file_name)
-    # # 测试随机选择（非正态分布）
-    # # random_eval()
-    # # 测试模型
-    # model_eval_DDPG(policy, n_agents)
+    state_dim = 15
+    action_dim = 3
+    max_action = 1.0
+    n_agents = 3
+    policy_name = "TD3"
+    env_name = "MAStandardEnv"
+    policy = []
+    policy = [TD3(state_dim, action_dim, max_action) for _ in range(n_agents)]
+    for i in range(n_agents):
+        file_name = f"model_train/TD3/agent_{i}_{policy_name}_{env_name}"
+        policy[i].load(file_name)
+    # 测试随机选择（非正态分布）
+    # random_eval()
+    # 测试模型
+    model_eval_DDPG(policy, n_agents)
 
     # ########################## SAC ###############################
     # state_dim = 15
@@ -209,18 +209,18 @@ if __name__ == "__main__":
     # model_eval_SAC(policy, n_agents)
 
     ########################## DDPG ###############################
-    state_dim = 15
-    action_dim = 3
-    max_action = 1.0
-    n_agents = 3
-    policy_name = "DDPG"
-    env_name = "MAStandardEnv"
-    policy = []
-    policy = [TD3(state_dim, action_dim, max_action) for _ in range(n_agents)]
-    for i in range(n_agents):
-        file_name = f"model_train/DDPG/agent_{i}_{policy_name}_{env_name}"
-        policy[i].load(file_name)
-    # 测试随机选择（非正态分布）
-    # random_eval()
-    # 测试模型
-    model_eval_DDPG(policy, n_agents)
+    # state_dim = 15
+    # action_dim = 3
+    # max_action = 1.0
+    # n_agents = 3
+    # policy_name = "DDPG"
+    # env_name = "MAStandardEnv"
+    # policy = []
+    # policy = [TD3(state_dim, action_dim, max_action) for _ in range(n_agents)]
+    # for i in range(n_agents):
+    #     file_name = f"model_train/DDPG/agent_{i}_{policy_name}_{env_name}"
+    #     policy[i].load(file_name)
+    # # 测试随机选择（非正态分布）
+    # # random_eval()
+    # # 测试模型
+    # model_eval_DDPG(policy, n_agents)

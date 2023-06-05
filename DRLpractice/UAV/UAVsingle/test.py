@@ -3,14 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FuncFormatter
-import torch
+# import torch
 from rl_plotter.logger import Logger
-import torch.nn.functional as F
+# import torch.nn.functional as F
 
 
 def create_map():
-    static_obstacle_num = 25
-    dynamic_obstacle_num = 25
+    static_obstacle_num = 10
+    dynamic_obstacle_num = 40
     static_obs_info = []
     dynamic_obs_info = []
     for i in range(static_obstacle_num):
